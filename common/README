@@ -1,0 +1,5 @@
+This directory was the "common" directory from MRTLE.
+We can remove duplicates with EMINT:
+- Matrix.C/.H
+- CommonTypes.H
+The orthomapsparser classes are also redundant with the ones in EMINT.
