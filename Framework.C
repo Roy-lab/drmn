@@ -41,9 +41,6 @@ CMINT: An algorithm to cluster functional genomics data for multiple cell types
 
 Framework::Framework()
 {
-	learnMode = GREEDY;
-	minRegSize = -1;
-	maxRegSize = -1;
 }
 
 Framework::~Framework()
@@ -1204,9 +1201,10 @@ Framework::setInitExpertsPerSpecies(bool setPerSpecies)
 }
 
 int 
-Framework::setMode(LearnMode lm, int m1, int m2)
+Framework::setMode(LearnMode lm, double r1, double r2, double r3)
 {
-	scMgr.setMode(lm,m1,m2);
+	scMgr.setMode(lm,r1,r2,r3);
+	return 0;
 }
 
 /**
@@ -1231,14 +1229,15 @@ int
 main(int argc, const char** argv)
 {
 	LearnMode learnMode;
-	int minRegSize;
-	int maxRegSize;
+	double rho1=0;
+	double rho2=0;
+	double rho3=0;
 	// DC adds option to fix cluster variance
 	// also to init clusters from self or from source species
 	// also orthology map for cisregulatory elements
 
 	//if(argc<13 || argc>15)
-	if(argc<13 || argc>17)
+	if(argc<13 || argc>18)
 	{
 		cout <<"Usage: ./learnDRMN celltype_order genegroup null maxk celllineage config rand[none|yes|<int>] ";
 		cout << "outputDir mode[learn|learnCV|learnCV:<int>:<int>:<int>|generate|visualize] srcnode inittype[uniform|branchlength] p_diagonal_nonleaf [const_cov(double), selfInit]" << endl;
@@ -1301,37 +1300,43 @@ main(int argc, const char** argv)
 	}
 	if (argc>=15)
 	{
+		cout << "here we go:" << argv[14] << endl;
 		if (strcmp(argv[14],"LEASTL21")==0)
 		{
+			cout << "we got LEASTL21" << endl;
 			learnMode = LEASTL21;
 		}
 		else if (strcmp(argv[14],"LEASTDIRTY")==0)
 		{
+			cout << "we got LEASTDIRTY" << endl;
 			learnMode = LEASTDIRTY;
+		}
+		else if (strcmp(argv[14],"LEASTFUSED")==0)
+		{
+			cout << "we got LEASTFUSED" << endl;
+			learnMode = LEASTFUSED;
 		}
 		else
 		{
+			cout << "we got GREEDY" << endl;
 			learnMode = GREEDY;
 		}
-		if (learnMode == LEASTDIRTY || learnMode == LEASTL21)
+		//if (learnMode == LEASTDIRTY || learnMode == LEASTL21)
+		if (learnMode != GREEDY)
 		{
 			if (argc>=16)
 			{
-				minRegSize = atoi(argv[15]);
+				rho1 = atof(argv[15]);
 			}
 			if (argc>=17)
 			{
-				maxRegSize = atoi(argv[16]);
+				rho2 = atof(argv[16]);
 			}
-			if (minRegSize < 0)
+			if (argc>=18)
 			{
-				minRegSize = 25;
+				rho3 = atof(argv[17]);
 			}
-			if (maxRegSize<minRegSize)
-			{
-				maxRegSize = minRegSize+25;
-			}
-			fw.setMode(learnMode,minRegSize,maxRegSize);
+			fw.setMode(learnMode,rho1,rho2,rho3);
 		}
 	}
 

@@ -13,14 +13,16 @@
 #include "LeastLasso.H"
 #include "LeastL21.H"
 #include "LeastDirty.H"
-
+#include "LeastCFGLasso.H"
 
 typedef enum
 {
 	LEASTL21,
 	LEASTDIRTY,
+	LEASTFUSED,
 	GREEDY
 }LearnMode;
+
 
 using namespace std;
 class Expert;
@@ -31,7 +33,7 @@ class GeneNameMapper;
 class SpeciesFeatureManager;
 class SpeciesDistManager;
 class DRMNPotential;
-class Evidence;
+//class Evidence;
 class EvidenceManager;
 
 typedef map<int,Expert*> CLUSTERSET;
@@ -118,9 +120,8 @@ class SpeciesClusterManager
  	* - Sampled expression (sample from gaussian instead of using mean) (cell_sample_maxclust_exprtab.txt)
  	*/
 	int showDRMNResults(const char*);
+	int setMode(LearnMode lm, double r1, double r2, double r3);
 	
-	int setMode(LearnMode lm, int m1, int m2);
-
 	private:
 
 	
@@ -141,16 +142,13 @@ class SpeciesClusterManager
 	int precomputeEmptyGraphPrior();
 	int estimateRegProgs();
 	int estimateRegProgs_PerModule(int moduleID);
-	int estimateRegProgs_PerModule_LASSO(int moduleID);
-	double makeOnePotential(Expert* e,vector<string>& regNames,string& cellType,bool& regStatus,DRMNPotential** potPtr, Matrix* X, Matrix* Y);
-	int estimateCov(Expert* e, Matrix* X, Matrix* Y, map<int,INTDBLMAP*>& gCovar);
 	double assessScoreImprovement(Expert* e,string& regName,string& cellType,bool& regStatus,DRMNPotential** potPtr);
 	//double assessScoreImprovement(Expert* e,string& regName,string& cellType,bool& regStatus,DRMNPotential* potPtr);
 	double getScoreForPot(map<string,int>& geneSet,DRMNPotential* apot, string& cellType);
+	double getScoreForPot_Tracetrick(map<string,int>& geneSet,DRMNPotential* apot, DRMNPotential* ppot, string& cellType);
 
-	int countAllW(vector<Matrix*> allW);
-	int clearAllW(vector<Matrix*>& allW);
-
+	/* Ali */
+	double assessScoreImprovement_Bookkeeping_Ali(Expert* e,string& regName,string& cellType,bool& regStatus,DRMNPotential** potPtr, map<int,INTDBLMAP*> baseCovar, Matrix* X, Matrix* Y);
 	/* DC */
 	double assessScoreImprovement_Bookkeeping(Expert* e,string& regName,string& cellType,bool& regStatus,DRMNPotential** potPtr, map<int,INTDBLMAP*> baseCovar);
 	int copyCovar(map<int,INTDBLMAP*>& source, map<int,INTDBLMAP*>& target);
@@ -255,10 +253,20 @@ class SpeciesClusterManager
 	// DC added -- init clusters per cell type (true) or to source (false; default)?
 	bool initExpertsPerSpecies;
 
+	int estimateCov(Expert* e, Matrix* X, Matrix* Y, map<int,INTDBLMAP*>& gCovar);
+	int estimateCov_All(Expert* e, Matrix* X, Matrix* Y, map<int,INTDBLMAP*>& gCovar);
+	int addCov(Expert* e, Matrix* X, Matrix* Y, map<int,INTDBLMAP*>& gCovar, string regName);
+
+	int estimateRegProgs_PerModule_LASSO(int moduleID);
+	double makeOnePotential(Expert* e,vector<string>& regNames,string& cellType,bool& regStatus,DRMNPotential** potPtr, Matrix* X, Matrix* Y);
+	int learnLEAST(vector<Task_T*>* allt,vector<Matrix*>& allW);
+	int countAllW(vector<Matrix*> allW);
+	int clearAllW(vector<Matrix*>& allW);
+
 	LearnMode learnMode;
-	int minRegSize;
-	int maxRegSize;
-	int learnLEAST(vector<Task_T*>* allt,vector<Matrix*>& allW, double newlambda);
+	double rho1;
+	double rho2;
+	double rho3;
 };
 
 #endif

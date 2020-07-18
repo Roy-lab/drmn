@@ -44,7 +44,6 @@ CMINT: An algorithm to cluster functional omics data from multiple celltypes
 #include "SpeciesDistManager.H"
 #include "SpeciesClusterManager.H"
 
-
 SpeciesClusterManager::SpeciesClusterManager()
 {
 	fixCov=false;
@@ -56,12 +55,12 @@ SpeciesClusterManager::SpeciesClusterManager()
 	regsPerIter=5;
 	maxEMINTIter=10;
 	maxDRMNIter=10; // original experiments set this to 10
-	//maxDRMNIter=1; // original experiments set this to 10
 
 	initExpertsPerSpecies=false; // default: init to source species
 	learnMode = GREEDY;
-	minRegSize = 25;
-	maxRegSize = 50;
+	rho1 = 0;
+	rho2 = 0;
+	rho3 = 0;
 }
 
 SpeciesClusterManager::~SpeciesClusterManager()
@@ -453,7 +452,8 @@ SpeciesClusterManager::readSpeciesData(const char* clusterFName, vector<string>&
 			cout << netFeatFName << endl;
 			if (netFeatFName.compare("") != 0)
 			{
-				featureManager->readFeatures(netFeatFName.c_str());
+				//featureManager->readFeatures(netFeatFName.c_str());
+				featureManager->readFeatures_Efficient(netFeatFName.c_str());
 			}
 			else
 			{
@@ -463,8 +463,8 @@ SpeciesClusterManager::readSpeciesData(const char* clusterFName, vector<string>&
 			
 			//speciesFeatSet[speciesName]=featureManager;
 			//SR: We will maintain the names of all regulators in one place
-			map<string,map<string,double>*>& predictiveFeatureSet=featureManager->getFeatures();
-			for(map<string,map<string,double>*>::iterator rIter=predictiveFeatureSet.begin();rIter!=predictiveFeatureSet.end();rIter++)
+			map<string,int>& regSet=featureManager->getFeatureNames();
+			for(map<string,int>::iterator rIter=regSet.begin();rIter!=regSet.end();rIter++)
 			{
 				allRegulatorSet[rIter->first]=0;
 				if(varNameIDMap.find(rIter->first)==varNameIDMap.end())
@@ -493,33 +493,48 @@ SpeciesClusterManager::readSpeciesData(const char* clusterFName, vector<string>&
 				collapsedVal=collapsedVal/exp->size();
 				//Now make an Evidence object
 				//Evidence* evid=new Evidence;
-				int varID=varNameIDMap["Expression"];
-				//evid->assocVariable(varID);
+				//int varID=varNameIDMap["Expression"];
+				////evid->assocVariable(varID);
 				//evid->setEvidVal(collapsedVal);
 				//(*evidMap)[varID]=evid;
+				int varID=varNameIDMap["Expression"];
 				(*evidMap)[varID]=collapsedVal;
 				//Now for this gene get all its regulatory features	
-				for(map<string,map<string,double>*>::iterator rIter=predictiveFeatureSet.begin();rIter!=predictiveFeatureSet.end();rIter++)
+				//map<string,double>* tfs=featureManager->getRegulatorsForTarget((string&)gIter->first);
+				double* tfs=featureManager->getRegulatorsForTarget_Efficient((string&)gIter->first);
+				//for(map<string,map<string,double>*>::iterator rIter=predictiveFeatureSet.begin();rIter!=predictiveFeatureSet.end();rIter++)
+				if(tfs!=NULL)
 				{
-					map<string,double>* tgts=rIter->second;
-					double regFeatVal=0;
-					if(tgts->find(gIter->first)==tgts->end())
-					{	
-						regFeatVal=featureManager->getDefaultValue();
-					}
-					else
+					//for(map<string,double>::iterator rIter=tfs->begin();rIter!=tfs->end();rIter++)
+					for(map<string,int>::iterator rIter=regSet.begin();rIter!=regSet.end();rIter++)
 					{
-						regFeatVal=(*tgts)[gIter->first];
+						//map<string,double>* tgts=rIter->second;
+						//double regFeatVal=rIter->second;
+						double regFeatVal=tfs[rIter->second];
+						/*if(tgts->find(gIter->first)==tgts->end())
+						{	
+							regFeatVal=featureManager->getDefaultValue();
+						}
+						else
+						{
+							regFeatVal=(*tgts)[gIter->first];
+						}*/
+						//Evidence* evid=new Evidence;
+						//int varID=varNameIDMap[rIter->first];
+						////evid->assocVariable(varID);
+						//evid->setEvidVal(regFeatVal);
+						//(*evidMap)[varID]=evid;
+						int varID=varNameIDMap[rIter->first];
+						(*evidMap)[varID]=regFeatVal;
 					}
-					//Evidence* evid=new Evidence;
-					int varID=varNameIDMap[rIter->first];
-					//evid->assocVariable(varID);
-					//evid->setEvidVal(regFeatVal);
-					//(*evidMap)[varID]=evid;
-					(*evidMap)[varID]=regFeatVal;
+					//Now we just add the evidMap to evMgr;
+					evManager->addEvidenceWithName(evidMap,(string&)gIter->first);
 				}
-				//Now we just add the evidMap to evMgr;
-				evManager->addEvidenceWithName(evidMap,(string&)gIter->first);
+				else
+				{
+					//We didn't have features, we skip this one
+					delete evidMap;
+				}
 			}
 			delete featureManager;
 		}
@@ -718,10 +733,6 @@ SpeciesClusterManager::estimateDRMN(const char* outputDir)
 		}
 		success=abs(success)+abs(showDRMNResults(intermediateOutDir));
 		iter++;
-		if (learnMode != GREEDY)
-		{
-			break;
-		}
 	}
 	if(convergence)
 	{
@@ -1040,6 +1051,8 @@ int
 SpeciesClusterManager::readClusters(string& specName, const char* fName)
 {
 	int success=0; // switch to 1 if any problem
+	
+	EvidenceManager* evMgr=evMgrSet[specName];
 
 	ifstream inFile(fName);
 	CLUSTERSET* cset=new CLUSTERSET;
@@ -1049,6 +1062,7 @@ SpeciesClusterManager::readClusters(string& specName, const char* fName)
 
 	int sansOGIDs=0; // keep track of how many genes don't have OGIDs
 	int sansExpr=0; // keep track of how many genes don't have expression
+	int sansFeat=0; // keep track of how many genes don't have features
 	
 	// we will store legal test OGIDS for this species
 	// legal means they have a cluster assignment, are in the test set,
@@ -1108,6 +1122,13 @@ SpeciesClusterManager::readClusters(string& specName, const char* fName)
 			sansExpr++;
 			continue;
 		}
+		EMAP* evidSet=evMgr->getEvidenceAt(genename);
+		if (evidSet == NULL)
+		{
+			sansFeat++;
+			continue;
+		}
+
 		// save legal OGID IF it has expression data AND cluster assignment
 		(*legal)[ogid]=1;
 		
@@ -1159,6 +1180,7 @@ SpeciesClusterManager::readClusters(string& specName, const char* fName)
 	cout <<"Read " << geneset->size() << " genes in " << specName << endl;
 	cout << "\tSkipped " << sansOGIDs << " genes that weren't in the OGIDs master list." << endl;
 	cout << "\tSkipped " << sansExpr << " genes that didn't have expression data." << endl;
+	cout << "\tSkipped " << sansFeat << " genes that didn't have feature data." << endl;
 	inFile.close();
 
 	// initialize empty experts for remaining IDs?
@@ -1263,10 +1285,12 @@ SpeciesClusterManager::estimateRegProgs()
         //estimateRegProgs_PerModule(k); // SR: only need to send the cluster ids here. 
 		if (learnMode == GREEDY)
 		{
+			cout << "doing GREEDY!" << endl;
         	estimateRegProgs_PerModule(k); // SR: only need to send the cluster ids here. 
 		}
 		else
 		{
+			cout << "doing LASSO!" << endl;
         	estimateRegProgs_PerModule_LASSO(k); // SR: only need to send the cluster ids here. 
 		}
 	}
@@ -1301,7 +1325,7 @@ SpeciesClusterManager::getScore()
 			{
 				Expert* e=eIter->second;
 				double pdf=e->getOutputPDF(exprProf);
-				if(isnan(pdf))
+				if(std::isnan(pdf))
 				{
 					cout <<"PDF is nan for " << cIter->first << " " << vIter->first << " for expert " << eIter->first << endl;
 				}	
@@ -1347,7 +1371,7 @@ SpeciesClusterManager::getDRMNScore()
 			{
 				Expert* e=eIter->second;
 				double pdf=e->getDRMNProb(evidSet);
-				if(isnan(pdf))
+				if(std::isnan(pdf))
 				{
 					cout <<"PDF is nan for " << cIter->first << " " << vIter->first << " for expert " << eIter->first << endl;
 				}	
@@ -1440,6 +1464,10 @@ SpeciesClusterManager::getDRMNScore_test(map<int,int>& testOGIDs, double& netLL_
 			{
 				string testgene=nameIter->first;
 				EMAP* evidSet=evMgr->getEvidenceAt(testgene);
+				if (evidSet == NULL)
+				{
+					continue;
+				}
 				map<int,double>* mixOutProbs=gammaMgr->getLeafLikelihood_store(ogid,testgene);
 				
 				//double* mixOutProbs=gammaMgr->getLeafLikelihood_store(ogid,(string&)vIter->first);
@@ -1447,7 +1475,7 @@ SpeciesClusterManager::getDRMNScore_test(map<int,int>& testOGIDs, double& netLL_
 				{
 					Expert* e=eIter->second;
 					double pdf=e->getDRMNProb(evidSet);
-					if(isnan(pdf))
+					if(std::isnan(pdf))
 					{
 						cout <<"PDF is nan for " << cIter->first << ":" << testgene << " for expert " << eIter->first << endl;
 					}	
@@ -1624,6 +1652,65 @@ SpeciesClusterManager::estimateRegProgs_PerModule(int moduleID)
 	time_t result = time(0);
 	cout << std::asctime(localtime(&result)) << endl;
 
+	map<string,Matrix*> cell2exp;
+	map<string,Matrix*> cell2feat;
+	for(map<string,CLUSTERSET*>::iterator sIter=speciesExpertSet.begin();sIter!=speciesExpertSet.end();sIter++)
+	{
+		string s=sIter->first;
+		CLUSTERSET* expertSet=sIter->second;
+		Expert* expert=(*expertSet)[moduleID];
+		map<string,int>& geneSet=expert->getGeneSet();
+
+		map<string,int> temp_gene2id;
+		temp_gene2id.clear();
+		int tgi=0;
+		for (map<string,int>::iterator gitr = geneSet.begin(); gitr!=geneSet.end(); gitr++)
+		{
+			string gname = gitr->first;
+			temp_gene2id[gname] = tgi;
+			tgi++;
+		}
+
+		int regCnt = allRegulatorIndex.size();
+		int geneCnt = geneSet.size();
+		cout << s << " has " << geneCnt << " genes." << endl;
+		EvidenceManager* evMgr=evMgrSet[s];
+		Matrix* Y = new Matrix(1,geneCnt);
+		for (map<string,int>::iterator gitr = geneSet.begin(); gitr!=geneSet.end(); gitr++)
+		{
+			string gname = gitr->first;
+			int gi=temp_gene2id[gname];
+			EMAP* evidMap=evMgr->getEvidenceAt(gname);
+			int varID=varNameIDMap["Expression"];
+			//Evidence* evid=(*evidMap)[varID];
+			//double val=evid->getEvidVal();
+			double val=(*evidMap)[varID];
+			Y->setValue(val,0,gi);
+		}
+		cell2exp[s] = Y;
+		Matrix* X = new Matrix(regCnt,geneCnt);
+		for (map<string,int>::iterator gitr = geneSet.begin(); gitr!=geneSet.end(); gitr++)
+		{
+			string gname = gitr->first;
+			int gi = temp_gene2id[gitr->first];
+			EMAP* evidMap = evMgr->getEvidenceAt(gname);
+			for (map<string,int>::iterator ritr=allRegulatorIndex.begin(); ritr!=allRegulatorIndex.end();ritr++)
+			{
+				int ri=ritr->second;
+				int varID=varNameIDMap[ritr->first];
+				//Evidence* evid = (*evidMap)[varID];
+				//double val = evid->getEvidVal();
+				double val = 0;
+				if(evidMap->find(varID)!=evidMap->end())
+				{
+					val=(*evidMap)[varID];
+				}
+				X->setValue(val,ri,gi);
+			}
+		}
+		cell2feat[s] = X;
+	}
+
 	//cout << "Providing updated module data to expert (assign gene to expert?)" << endl;
 	//As in mrtle, our score will be made up two parts: (a) how well does this regulator 
 	//explain the expression of this module, and (b) how costly is it to use this regulator in terms of it being unique to 
@@ -1636,11 +1723,30 @@ SpeciesClusterManager::estimateRegProgs_PerModule(int moduleID)
 	int currIter=0;
 	double currScore=0;
 	SpeciesDistManager* sdMgr=gammaMgr->getSpeciesDistManager();
+	//NEW: compute all covar for all mRNA and regulator features.
+	// key is species, value is a base covariance matrix.
+	map<string,map<int,INTDBLMAP*>> baseCovarAllSpecies; 
+	for(map<string,CLUSTERSET*>::iterator sIter=speciesExpertSet.begin();sIter!=speciesExpertSet.end();sIter++)
+	{
+		string s=sIter->first;
+		Matrix* X = cell2feat[s];
+		Matrix* Y = cell2exp[s];
+		CLUSTERSET* expertSet=sIter->second;
+		Expert* expert=(*expertSet)[moduleID];
+		if (expert==NULL)
+		{
+			cerr << "NULL EXPERT for " << sIter->first << endl; // diagnosing badness
+			//continue; // Skip this species?? no, let it seg fault!
+		}
+
+		map<int,INTDBLMAP*> myCovar;
+		//computeBaseUnnormCovar(expert, s, myCovar);
+		estimateCov_All(expert, X, Y, myCovar);
+		baseCovarAllSpecies[s]=myCovar;
+	}
+	
 	while(currIter<regsPerIter && !hasConv)
 	{
-		// key is species, value is a base covariance matrix.
-		// we will recompute the base covariance matrix every time we start this loop (try to add 1 regulator)
-		map<string,map<int,INTDBLMAP*> > baseCovarAllSpecies; 
 
 		//Each time we want to add the best regulator. The score of the regulator includes how good the regulator 
 		//explains the expression of a module and how similar are the regulators (we can tune this as an input 
@@ -1666,6 +1772,8 @@ SpeciesClusterManager::estimateRegProgs_PerModule(int moduleID)
 			for(map<string,CLUSTERSET*>::iterator sIter=speciesExpertSet.begin();sIter!=speciesExpertSet.end();sIter++)
 			{
 				string s=sIter->first;
+				Matrix* X = cell2feat[s];
+				Matrix* Y = cell2exp[s];
 				CLUSTERSET* expertSet=sIter->second;
 				Expert* expert=(*expertSet)[moduleID];
 				if (expert==NULL)
@@ -1673,24 +1781,16 @@ SpeciesClusterManager::estimateRegProgs_PerModule(int moduleID)
 					cerr << "NULL EXPERT for " << sIter->first << endl; // diagnosing badness
 					//continue; // Skip this species?? no, let it seg fault!
 				}
-
-				// Do we already have a base covariance matrix for this cell type/species? If not, populate it.
-				if (baseCovarAllSpecies.find(s)==baseCovarAllSpecies.end())
-				{
-					map<int,INTDBLMAP*> myCovar;
-					computeBaseUnnormCovar(expert, s, myCovar);
-					baseCovarAllSpecies[s]=myCovar;
-				}
 				map<int,INTDBLMAP*> baseCovar=baseCovarAllSpecies[s];
 
 				//We'll need to pass the predictive feature-gene associations aka motifs too here
 				//SpeciesFeatureManager* sfMgr=speciesFeatSet[sIter->first];
 				bool regulatorStatus=false;
 				DRMNPotential* aPot=NULL;
-
 				// DC UPDATE: try the bookkeeping version.
 				//double scoreImprovement_PerCelltype=assessScoreImprovement(expert,(string&)rIter->first,(string&)sIter->first,regulatorStatus,&aPot);
-				double scoreImprovement_PerCelltype=assessScoreImprovement_Bookkeeping(expert,(string&)rIter->first,(string&)sIter->first,regulatorStatus,&aPot,baseCovar);
+				//double scoreImprovement_PerCelltype=assessScoreImprovement_Bookkeeping(expert,(string&)rIter->first,(string&)sIter->first,regulatorStatus,&aPot,baseCovar);
+				double scoreImprovement_PerCelltype=assessScoreImprovement_Bookkeeping_Ali(expert,(string&)rIter->first,(string&)sIter->first,regulatorStatus,&aPot,baseCovar, X, Y);
 
 				//Three things can happen: scoreImprovement_PerCelltype can be positive, negative or 0.
 				//If it is 0, it means the regulator is already associated with this expert, but we want to
@@ -1765,7 +1865,7 @@ SpeciesClusterManager::estimateRegProgs_PerModule(int moduleID)
 		cout << "\tTime to score regulators (s) = " << ((long double) t)/CLOCKS_PER_SEC << endl;
 
 		// Clean up the base covars (DC NEW)
-		for (map<string,map<int,INTDBLMAP*> >::iterator bIter=baseCovarAllSpecies.begin(); bIter!=baseCovarAllSpecies.end(); bIter++)
+		/*for (map<string,map<int,INTDBLMAP*> >::iterator bIter=baseCovarAllSpecies.begin(); bIter!=baseCovarAllSpecies.end(); bIter++)
 		{
 			map<int,INTDBLMAP*> gCovar=bIter->second;
 			for(map<int,INTDBLMAP*>::iterator idIter=gCovar.begin() ;idIter!=gCovar.end();idIter++)
@@ -1773,7 +1873,7 @@ SpeciesClusterManager::estimateRegProgs_PerModule(int moduleID)
 				idIter->second->clear();
 				delete idIter->second;
 			}
-		}
+		}*/
 
 		//	if no regulator chosen, clean up
 		if(bestScoreImprovement<=0)
@@ -1841,339 +1941,21 @@ SpeciesClusterManager::estimateRegProgs_PerModule(int moduleID)
 		map<string,int>& regSet=e->getCurrentRegSet();
 		if (regSet.size()==0)
 		{
-			cout << "No regulators for Module" << moduleID << endl;
+			cout << "No regulators for " << sIter->first << " Module" << moduleID << endl;
 		}
 		for(map<string,int>::iterator rIter=regSet.begin();rIter!=regSet.end();rIter++)
 		{
 			cout << sIter->first<< " Module"<<moduleID<<"-" << rIter->first <<endl;
 		}
 	}
-
-	return 0;
-}
-
-int
-SpeciesClusterManager::estimateCov(Expert* e, Matrix* X, Matrix* Y, map<int,INTDBLMAP*>& gCovar)
-{
-	map<string,int>& regSet=e->getCurrentRegSet(); // current regulators
-	for(map<string,int>::iterator vIter=regSet.begin();vIter!=regSet.end();vIter++)
+	for (map<string,Matrix*>::iterator sitr=cell2feat.begin(); sitr!=cell2feat.end(); sitr++)
 	{
-		int vXID = allRegulatorIndex[vIter->first];
-		int vID  = varNameIDMap[vIter->first];
-		gsl_vector_view Dv = X->getRowView(vXID);
-
-		INTDBLMAP* vcov=NULL;
-		if(gCovar.find(vID)==gCovar.end())
-		{
-			vcov=new INTDBLMAP;
-			gCovar[vID]=vcov;
-		}
-		else
-		{
-			vcov=gCovar[vID];
-		}
-
-		for(map<string,int>::iterator uIter=vIter;uIter!=regSet.end();uIter++)
-		{
-			int uXID = allRegulatorIndex[uIter->first];
-			int uID  = varNameIDMap[uIter->first];
-			gsl_vector_view Du = X->getRowView(uXID);
-double uvcov = gsl_stats_covariance (Du.vector.data, Du.vector.stride, Dv.vector.data, Dv.vector.stride, Du.vector.size); 
-			if (isnan(uvcov))
-			{
-				cout << "vID:" << vID << ",uID:" << uID << " is nan." << endl;
-				uvcov = 0;
-			}
-
-			INTDBLMAP* ucov=NULL;
-			if(gCovar.find(uID)==gCovar.end())
-			{
-				ucov=new INTDBLMAP;
-				gCovar[uID]=ucov;
-			}
-			else
-			{
-				ucov=gCovar[uID];
-			}
-			if (uID == vID)
-			{
-				uvcov += 0.001;
-			}
-			(*vcov)[uID]=uvcov;
-			(*ucov)[vID]=uvcov;
-		}
-		int uID=varNameIDMap["Expression"];
-		gsl_vector_view Du = Y->getRowView(0);
-double uvcov = gsl_stats_covariance (Du.vector.data, Du.vector.stride, Dv.vector.data, Dv.vector.stride, Du.vector.size); 
-		if (isnan(uvcov))
-		{
-			cout << "vID:" << vID << ",uID:" << uID << " is nan." << endl;
-			uvcov = 0;
-		}
-
-		INTDBLMAP* ucov=NULL;
-		if(gCovar.find(uID)==gCovar.end())
-		{
-			ucov=new INTDBLMAP;
-			gCovar[uID]=ucov;
-		}
-		else
-		{
-			ucov=gCovar[uID];
-		}
-		(*vcov)[uID]=uvcov;
-		(*ucov)[vID]=uvcov;
-		//Exp 2 Exp
-	}
-	int uID=varNameIDMap["Expression"];
-	gsl_vector_view Du = Y->getRowView(0);
-	double uvar  = gsl_stats_covariance (Du.vector.data, Du.vector.stride, Du.vector.data, Du.vector.stride, Du.vector.size); 
-	INTDBLMAP* ucov=NULL;
-	if(gCovar.find(uID)==gCovar.end())
-	{
-		ucov=new INTDBLMAP;
-		gCovar[uID]=ucov;
-	}
-	else
-	{
-		ucov=gCovar[uID];
-	}
-	(*ucov)[uID]=uvar+0.001;
-	return 0;
-}
-
-int
-SpeciesClusterManager::countAllW(vector<Matrix*> allW)
-{
-	int cnt = 0;
-	for(int i=0;i<allW.size();i++)
-	{
-		Matrix* W = allW[i];
-		for (int j=0;j<W->getRowCnt();j++)
-		{
-			double v = W->getValue(j,0);
-			//cout << "# " << v << endl;
-			//printf("# %.20f\n", v);
-			//if ( fabs(v)>0.001 )
-			if ( v != 0 )
-			{
-				cnt ++;
-			}
-		}
-	}
-	cnt = cnt/allW.size();
-	return cnt;
-}
-
-int
-SpeciesClusterManager::clearAllW(vector<Matrix*>& allW)
-{
-	for(int i=0;i<allW.size();i++)
-	{
-		Matrix* W = allW[i];
-		delete W;
-	}
-	allW.clear();
-	return 0;
-}
-
-int
-SpeciesClusterManager::estimateRegProgs_PerModule_LASSO(int moduleID)
-{
-	cout << "Updating regulatory program for " << moduleID << " ";
-	time_t result = time(0);
-	cout << std::asctime(localtime(&result)) << endl;
-	cout << "Doing LeastL21" << endl;
-	
-	vector<Task_T*>* allt = new vector<Task_T*>;
-	map<string,Matrix*> cell2exp;
-	map<string,Matrix*> cell2feat;
-	for(map<string,CLUSTERSET*>::iterator sIter=speciesExpertSet.begin();sIter!=speciesExpertSet.end();sIter++)
-	{
-		string s=sIter->first;
-		CLUSTERSET* expertSet=sIter->second;
-		Expert* expert=(*expertSet)[moduleID];
-		map<string,int>& geneSet=expert->getGeneSet();
-		//SpeciesFeatureManager* sfMgr=speciesFeatSet[s];
-
-		map<string,int> temp_gene2id;
-		temp_gene2id.clear();
-		int tgi=0;
-		for (map<string,int>::iterator gitr = geneSet.begin(); gitr!=geneSet.end(); gitr++)
-		{
-			string gname = gitr->first;
-			temp_gene2id[gname] = tgi;
-			tgi++;
-		}
-
-		int regCnt = allRegulatorIndex.size();
-		int geneCnt = geneSet.size();
-		cout << s << " has " << geneCnt << " genes." << endl;
-		EvidenceManager* evMgr=evMgrSet[s];
-		Matrix* Y = new Matrix(geneCnt,1);
-		map<string,int>* YNames = new map<string,int>;
-		for (map<string,int>::iterator gitr = geneSet.begin(); gitr!=geneSet.end(); gitr++)
-		{
-			string gname = gitr->first;
-			int gi=temp_gene2id[gname];
-			EMAP* evidMap=evMgr->getEvidenceAt(gname);
-			int varID=varNameIDMap["Expression"];
-			//Evidence* evid=(*evidMap)[varID];
-			//double val=evid->getEvidVal();
-			double val=(*evidMap)[varID];
-			Y->setValue(val,gi,0);
-			(*YNames)[gname]=gi;
-		}
-		Matrix* YT = Y->transMatrix();
-		//YT->rowStandardize();
-		cell2exp[s] = YT;
-		Matrix* X = new Matrix(regCnt,geneCnt);
-		for (map<string,int>::iterator gitr = geneSet.begin(); gitr!=geneSet.end(); gitr++)
-		{
-			string gname = gitr->first;
-			int gi = temp_gene2id[gitr->first];
-			EMAP* evidMap = evMgr->getEvidenceAt(gname);
-			for (map<string,int>::iterator ritr=allRegulatorIndex.begin(); ritr!=allRegulatorIndex.end();ritr++)
-			{
-				int ri=ritr->second;
-				int varID=varNameIDMap[ritr->first];
-				//Evidence* evid = (*evidMap)[varID];
-				//double val = evid->getEvidVal();
-				double val = (*evidMap)[varID];
-				X->setValue(val,ri,gi);
-			}
-		}
-		Matrix* XX = X->copyMe();
-		//XX->rowStandardize();
-		cell2feat[s] = XX;
-		X->rowStandardize();
-		Y->colStandardize();
-		Task_T* t = new Task_T;
-		t->YNames = YNames;
-		t->X = X;
-		t->Y = Y;
-		t->name = s;
-		allt->push_back(t);
-	}
-	vector<Matrix*> allW;
-	double oldlambda=0;
-	double newlambda=100;
-	while (true)
-	{
-		cout << "Using lambda: " << newlambda << endl;
-		learnLEAST(allt,allW,newlambda);
-		int cnt = countAllW(allW);
-		cout << "We got (average): " << cnt << " regulators." << endl;
-		//if (cnt==0)
-		if (cnt<minRegSize)
-		{
-			newlambda = (newlambda+oldlambda)/2;
-			clearAllW(allW);
-		}
-		else if (cnt > maxRegSize)
-		{
-			oldlambda = newlambda;
-			newlambda = 2*oldlambda;
-			clearAllW(allW);
-		}
-		else
-		{
-			break;
-		}
-	}
-
-
-	result = time(0);
-	cout << "Finished LeastL21" << " ";
-	cout << std::asctime(localtime(&result)) << endl;
-	
-	result = time(0);
-	cout << "Start adding" << " ";
-	cout << std::asctime(localtime(&result)) << endl;
-
-	for(int i=0;i<allW.size();i++)
-	{
-		Task_T* t = allt->at(i);
-		string  s = t->name;
-		Matrix* W = allW[i];
+		string  s = sitr->first;
 		Matrix* X = cell2feat[s];
 		Matrix* Y = cell2exp[s];
-
-		CLUSTERSET* expertSet=speciesExpertSet[s];
-		Expert* expert=(*expertSet)[moduleID];
-		//SpeciesFeatureManager* sfMgr=speciesFeatSet[s];
-		vector<string> regNames;
-		for (map<string,int>::iterator ritr=allRegulatorIndex.begin(); ritr!=allRegulatorIndex.end();ritr++)
-		{
-			int ri=ritr->second;
-			string rname = ritr->first;
-			double v = W->getValue(ri,0);
-			//Add this one
-			//if ( fabs(v)>0.001 )
-			if ( v != 0 )
-			{
-				regNames.push_back(rname);
-				//cout << ".";
-			}
-		}
-		cout << "I have " << regNames.size() << " regulators. Let's make a POTENTIAL!" << endl;
-		bool regulatorStatus=false;
-		DRMNPotential* aPot=NULL;
-		double scoreImprovement_PerCelltype=makeOnePotential(expert,regNames,s,regulatorStatus,&aPot,X,Y);
-
-		if (aPot == NULL)
-		{
-			cout << "Something went wrong , skipping this one" << endl;
-			//exit(0);
-		}
-		else
-		{
-			double currScore=expert->getLLScore();
-			expert->setLLScore(currScore+scoreImprovement_PerCelltype);
-			DRMNPotential* tPot=expert->getDRMNPotential();
-			if(tPot!=NULL)
-			{
-				delete tPot;
-			}
-			expert->setDRMNPotential(aPot);
-		}
-		cout << endl;
-	}
-	
-	cout << "Done adding" << " ";
-	cout << std::asctime(localtime(&result)) << endl;
-
-	cout <<"Done learning regulators for moduleID " << moduleID <<endl;
-	for(map<string,CLUSTERSET*>::iterator sIter=speciesExpertSet.begin();sIter!=speciesExpertSet.end();sIter++)
-	{
-		CLUSTERSET* experts=speciesExpertSet[sIter->first];
-		Expert* e=(*experts)[moduleID];
-		map<string,int>& regSet=e->getCurrentRegSet();
-		if (regSet.size()==0)
-		{
-			cout << "No regulators for Module" << moduleID << endl;
-		}
-		for(map<string,int>::iterator rIter=regSet.begin();rIter!=regSet.end();rIter++)
-		{
-			cout << sIter->first<< " Module"<<moduleID<<"-" << rIter->first <<endl;
-		}
-	}
-
-	for (int i=0;i<allt->size();i++)
-	{
-		Task_T* t = allt->at(i);
-		string s = t->name;
-		Matrix* XX = cell2feat[s];
-		delete XX;
-		Matrix* Y  = cell2exp[s];
+		delete X;
 		delete Y;
-		delete t;
-		Matrix* W = allW[i];
-		delete W;
 	}
-	allt->clear();
-	delete allt;
-	allW.clear();
 	cell2feat.clear();
 	cell2exp.clear();
 
@@ -2204,7 +1986,7 @@ SpeciesClusterManager::assessScoreImprovement(Expert* e,string& regName,string& 
 	}
 	//Otherwise, suppose that this expert does not have any regulators yet. We cannot do any pre-computation upfront like 
 	//the code that uses PotentialManager because the genes in the module keeps changing (unless we do soft assignment, in which case we just keep all the stuff). So how to do this.
-	//Better to work with Matrices and keep populating them and destroying them.
+	//Better to work with Matrix and keep populating them and destroying them.
 	
 	map<string,int>& geneSet=e->getGeneSet();
 
@@ -2218,15 +2000,15 @@ SpeciesClusterManager::assessScoreImprovement(Expert* e,string& regName,string& 
 
 	//First let's do a sanity check to make sure there are some genes that this regulator can regulate some genes in this set
 	//int overlapCnt=sfMgr->getTargetHitCntForRegulator(regName,geneSet);
-	////Must overlap at least 2% of the genes.. but might want to also know if this is a non-specific regulator.
+	//Must overlap at least 2% of the genes.. but might want to also know if this is a non-specific regulator.
 	//double overlapFrac=((double)overlapCnt)/((double)geneSet.size());
 	//double expFrac=sfMgr->getExpectedTargetCnt(regName);
 
 	// DC -- Removing this check, but making it check for ANY overlap
 	// why did I remove it? probably it was failing when I was testing.
-	////if((overlapFrac/expFrac)<1) // enriched more than other modules ("spec")
+	//if((overlapFrac/expFrac)<1) // enriched more than other modules ("spec")
 	//if(overlapCnt==0) // original version
-	////if(overlapFrac<0.1) // Cheap version: must overlap at least 10% of module genes. ("o10")
+	//if(overlapFrac<0.1) // Cheap version: must overlap at least 10% of module genes. ("o10")
 	//{
 	//	//cout <<"Regulator " << regName <<" has too little overlap :"<< overlapFrac<<endl;
 	//	return 0;
@@ -2454,146 +2236,6 @@ SpeciesClusterManager::assessScoreImprovement(Expert* e,string& regName,string& 
 	return impr;
 }
 
-double
-SpeciesClusterManager::makeOnePotential(Expert* e,vector<string>& regNames,string& cellType,bool& regStatus,DRMNPotential** potPtr, Matrix* X, Matrix* Y) 
-{
-	//SpeciesFeatureManager* sfMgr=speciesFeatSet[cellType];
-	EvidenceManager* evMgr=evMgrSet[cellType];
-	map<string,int>& regSet=e->getCurrentRegSet();
-	
-	map<string,int>& geneSet=e->getGeneSet();
-
-	// if geneset is 0, issue? this means the expert has no genes! :(
-	// I think this might be happening earlier
-	if (geneSet.size()==0)
-	{
-		cout << "geneset size 0 for expert!" << endl;
-		return 0;
-	}
-
-	//We will add the regulator to this module's regulator set and remove it when we are done
-	regSet.clear();
-	for(int i=0;i<regNames.size();i++)
-	{
-		string regName = regNames[i];
-		regSet[regName]=0;
-	}
-	//We are going to use our EvidenceManager associated with this cell type to compute everything. No need to make copies of the data. Ew.
-	int colID=0;
-	//First we will compute the mean, and then the covariance (this is the equivalent of calling populatePotential
-	//To compute the mean  we will first consider the mRNA levels 
-	//Then we can calculate the coefficients using something initMBCovMean
-
-	cout << "estimateMean:" << endl;
-	INTDBLMAP mean; 
-	for(map<string,int>::iterator geneIter=geneSet.begin();geneIter!=geneSet.end();geneIter++)
-	{
-		EMAP* evidMap=evMgr->getEvidenceAt((string&)geneIter->first);
-		// first get expression
-		int varID=varNameIDMap["Expression"];
-		//Evidence* evid=(*evidMap)[varID];
-		//double val=evid->getEvidVal();
-		double val=(*evidMap)[varID];
-		if(mean.find(varID)==mean.end())
-		{
-			mean[varID]=val;
-		}
-		else	
-		{
-			mean[varID]=mean[varID]+val;
-		}
-		//Now get the existing and new regulators
-		for(map<string,int>::iterator rIter=regSet.begin();rIter!=regSet.end();rIter++)
-		{
-			int varID=varNameIDMap[rIter->first];
-			//Evidence* evid=(*evidMap)[varID];
-			//double val=evid->getEvidVal();
-			double val=(*evidMap)[varID];
-			if(mean.find(varID)==mean.end())
-			{
-				mean[varID]=val;
-			}
-			else	
-			{
-				mean[varID]=mean[varID]+val;
-			}
-		}
-	}
-	
-	//Now we just normalize to get the mean
-	for(INTDBLMAP_ITER vIter=mean.begin();vIter!=mean.end();vIter++)
-	{
-		double val=vIter->second/geneSet.size();
-		vIter->second=val;
-	}
-	//Mean done. We now need the covariance. 
-	//We can just go over each evidence and populate the covariance entry which we will then normalize
-
-	// NEW STUFF: We'll copy in the base unnormalized covariance matrix.
-	map<int,INTDBLMAP*> gCovar;
-	//computeBaseUnnormCovar(e, cellType, gCovar);
-	cout << "estimateCov:" << endl;
-	estimateCov(e, X, Y, gCovar);
-	cout << "gCovar:" << gCovar.size() << endl;
-
-	DRMNPotential* pot=new DRMNPotential;
-	for(INTDBLMAP_ITER vIter=mean.begin();vIter!=mean.end();vIter++)
-	{
-		string& vName=varIDNameMap[vIter->first];
-		if(strcmp(vName.c_str(),"Expression")==0)
-		{
-			pot->setAssocVariable(vIter->first,DRMNPotential::FACTOR);
-		}
-		else
-		{
-			pot->setAssocVariable(vIter->first,DRMNPotential::MARKOV_BNKT);
-		}
-	}
-	pot->potZeroInit();
-	//populate potential using mean and covariance
-	for(INTDBLMAP_ITER vIter=mean.begin();vIter!=mean.end();vIter++)
-	{
-		double m=0;
-		double cov=0;
-		INTDBLMAP* covar=NULL;
-		m=mean[vIter->first];
-		covar=gCovar[vIter->first];
-		pot->updateMean(vIter->first,m);
-		for(INTDBLMAP_ITER uIter=vIter;uIter!=mean.end();uIter++)
-		{
-			double cval=(*covar)[uIter->first];
-			pot->updateCovariance(vIter->first,uIter->first,cval);
-			pot->updateCovariance(uIter->first,vIter->first,cval);
-		}
-	}
-	//pot->makeValidJPD(ludecomp,perm);
-	int status=pot->initMBCovMean();
-	
-
-	if(status!=0)
-	{
-		cout <<"Determinant too small, not going ahead with making potential in cell " << cellType  << endl;
-		delete pot;
-		return 0;
-	}
-
-	//Now we have estimated everything! Now we can use the same logic as before to get the score
-	double currScore=getScoreForPot(geneSet,pot,cellType);
-	double oldScore=e->getLLScore();
-	double impr=currScore-oldScore;
-	mean.clear();
-	for(map<int,INTDBLMAP*>::iterator idIter=gCovar.begin();idIter!=gCovar.end();idIter++)
-	{
-		idIter->second->clear();
-		delete idIter->second;
-	}
-	gCovar.clear();
-	//potPtr=&pot;
-	*potPtr=pot;
-	//potPtr=pot;
-
-	return impr;
-}
 
 
 /**
@@ -2623,7 +2265,7 @@ SpeciesClusterManager::assessScoreImprovement_Bookkeeping(Expert* e,string& regN
 	}
 	//Otherwise, suppose that this expert does not have any regulators yet. We cannot do any pre-computation upfront like 
 	//the code that uses PotentialManager because the genes in the module keeps changing (unless we do soft assignment, in which case we just keep all the stuff). So how to do this.
-	//Better to work with Matrices and keep populating them and destroying them.
+	//Better to work with Matrix and keep populating them and destroying them.
 	
 	map<string,int>& geneSet=e->getGeneSet();
 
@@ -2637,7 +2279,7 @@ SpeciesClusterManager::assessScoreImprovement_Bookkeeping(Expert* e,string& regN
 
 	//First let's do a sanity check to make sure there are some genes that this regulator can regulate some genes in this set
 	//int overlapCnt=sfMgr->getTargetHitCntForRegulator(regName,geneSet);
-	////Must overlap at least 2% of the genes.. but might want to also know if this is a non-specific regulator.
+	//Must overlap at least 2% of the genes.. but might want to also know if this is a non-specific regulator.
 	//double overlapFrac=((double)overlapCnt)/((double)geneSet.size());
 	//double expFrac=sfMgr->getExpectedTargetCnt(regName);
 
@@ -2886,6 +2528,222 @@ SpeciesClusterManager::assessScoreImprovement_Bookkeeping(Expert* e,string& regN
 	return impr;
 }
 
+double
+SpeciesClusterManager::assessScoreImprovement_Bookkeeping_Ali(Expert* e,string& regName,string& cellType,bool& regStatus,DRMNPotential** potPtr, map<int,INTDBLMAP*> baseCovar, Matrix* X, Matrix* Y) 
+{
+	// fail if base covar is empty
+	if (baseCovar.size()==0)
+	{
+		cerr << "You need to initialize the base covariance matrix first" << endl;
+		return 0;
+	}
+
+	//SpeciesFeatureManager* sfMgr=speciesFeatSet[cellType];
+	EvidenceManager* evMgr=evMgrSet[cellType];
+	map<string,int>& regSet=e->getCurrentRegSet();
+	
+	if(regSet.find(regName)!=regSet.end())
+	{
+		regStatus=true;
+		return 0;
+	}
+	//Otherwise, suppose that this expert does not have any regulators yet. We cannot do any pre-computation upfront like 
+	//the code that uses PotentialManager because the genes in the module keeps changing (unless we do soft assignment, in which case we just keep all the stuff). So how to do this.
+	//Better to work with Matrix and keep populating them and destroying them.
+	
+	map<string,int>& geneSet=e->getGeneSet();
+
+	// if geneset is 0, issue? this means the expert has no genes! :(
+	// I think this might be happening earlier
+	if (geneSet.size()==0)
+	{
+		cout << "geneset size 0 for expert!" << endl;
+		return 0;
+	}
+
+	//First let's do a sanity check to make sure there are some genes that this regulator can regulate some genes in this set
+	//int overlapCnt=sfMgr->getTargetHitCntForRegulator(regName,geneSet);
+	//Must overlap at least 2% of the genes.. but might want to also know if this is a non-specific regulator.
+	//double overlapFrac=((double)overlapCnt)/((double)geneSet.size());
+	//double expFrac=sfMgr->getExpectedTargetCnt(regName);
+
+	// DC -- Removing this check, but making it check for ANY overlap
+	// why did I remove it? probably it was failing when I was testing.
+	//if((overlapFrac/expFrac)<1) // enriched more than other modules ("spec")
+	//if(overlapCnt==0) // original version
+	//if(overlapFrac<0.1) // Cheap version: must overlap at least 10% of module genes. ("o10")
+	//{
+	//	//cout <<"Regulator " << regName <<" has too little overlap :"<< overlapFrac<<endl;
+	//	return 0;
+	//}
+	
+	/*if(strcmp(regName.c_str(),"Nfic")==0)
+	{
+		cout <<"Stop here" << endl;
+	}*/
+	//cout <<"Assessing " << regName<< " for "<< cellType << " overlapCnt: " << overlapCnt <<" among "<< geneSet.size() << endl;
+	//We will add the regulator to this module's regulator set and remove it when we are done
+	regSet[regName]=0;
+	//We are going to use our EvidenceManager associated with this cell type to compute everything. No need to make copies of the data. Ew.
+	int colID=0;
+	//First we will compute the mean, and then the covariance (this is the equivalent of calling populatePotential
+	//To compute the mean  we will first consider the mRNA levels 
+	//Then we can calculate the coefficients using something initMBCovMean
+
+	INTDBLMAP mean; 
+	for(map<string,int>::iterator geneIter=geneSet.begin();geneIter!=geneSet.end();geneIter++)
+	{
+		EMAP* evidMap=evMgr->getEvidenceAt((string&)geneIter->first);
+		// first get expression
+		int varID=varNameIDMap["Expression"];
+		//Evidence* evid=(*evidMap)[varID];
+		//double val=evid->getEvidVal();
+		double val=(*evidMap)[varID];
+		if(mean.find(varID)==mean.end())
+		{
+			mean[varID]=val;
+		}
+		else	
+		{
+			mean[varID]=mean[varID]+val;
+		}
+		//Now get the existing and new regulators
+		for(map<string,int>::iterator rIter=regSet.begin();rIter!=regSet.end();rIter++)
+		{
+			int varID=varNameIDMap[rIter->first];
+			//Evidence* evid=(*evidMap)[varID];
+			//double val=evid->getEvidVal();
+			double val=(*evidMap)[varID];
+			if(mean.find(varID)==mean.end())
+			{
+				mean[varID]=val;
+			}
+			else	
+			{
+				mean[varID]=mean[varID]+val;
+			}
+		}
+	}
+	
+	//Now we just normalize to get the mean
+	for(INTDBLMAP_ITER vIter=mean.begin();vIter!=mean.end();vIter++)
+	{
+		double val=vIter->second/geneSet.size();
+		vIter->second=val;
+	}
+	//Mean done. We now need the covariance. 
+	//We can just go over each evidence and populate the covariance entry which we will then normalize
+
+	// NEW STUFF: We'll copy in the base unnormalized covariance matrix.
+	map<int,INTDBLMAP*> gCovar;
+	//copyCovar(baseCovar, gCovar); // copy in the base covariance matrix.
+	//addCov(e, X, Y, gCovar, regName);
+
+	// debugging to make sure it worked. I'm satisfied.
+	//printCovar(baseCovar);
+	//printCovar(gCovar);
+
+	//Now the variance
+	// for each gene, we will look at each of expression and regulators
+
+	// TODO: If we are within the same DRMN iteration, we don't need to recompute the whole gCovar
+	// each time we consider a regulator. 
+	// We can start with expression and existing vars, and then do each variable paired with the new one.
+	// So we can skip the inner loop except for one.
+	// I think we also only need to normalize the new entries, since the gene set size hasn't changed.
+	
+	//printCovar(gCovar);
+
+	//cout <<"Total covariance pairs estimated " << covPair << endl;
+	//Now estimate the variance
+	//cout << "Normalized covar:" << endl;
+	//printCovar(gCovar);
+
+
+	DRMNPotential* pot=new DRMNPotential;
+	DRMNPotential* parentPot=new DRMNPotential;
+	int expVarID=-1;
+	for(INTDBLMAP_ITER vIter=mean.begin();vIter!=mean.end();vIter++)
+	{
+		string& vName=varIDNameMap[vIter->first];
+		if(strcmp(vName.c_str(),"Expression")==0)
+		{
+			pot->setAssocVariable(vIter->first,DRMNPotential::FACTOR);
+			expVarID=vIter->first;
+		}
+		else
+		{
+			pot->setAssocVariable(vIter->first,DRMNPotential::MARKOV_BNKT);
+			parentPot->setAssocVariable(vIter->first,DRMNPotential::MARKOV_BNKT);
+		}
+	}
+	pot->potZeroInit();
+	parentPot->potZeroInit();
+	//populate potential using mean and covariance
+	for(INTDBLMAP_ITER vIter=mean.begin();vIter!=mean.end();vIter++)
+	{
+		double m=0;
+		double cov=0;
+		INTDBLMAP* covar=NULL;
+		m=mean[vIter->first];
+		//covar=gCovar[vIter->first];
+		covar=baseCovar[vIter->first];
+		pot->updateMean(vIter->first,m);
+		if(vIter->first!=expVarID)
+		{
+			parentPot->updateMean(vIter->first,m);
+		}
+		for(INTDBLMAP_ITER uIter=vIter;uIter!=mean.end();uIter++)
+		{
+			if(covar->find(uIter->first)==covar->end())
+			{
+				cout <<"Did not find covariance entry for " << varIDNameMap[uIter->first] << " in " << varIDNameMap[vIter->first] << endl;
+				exit(0);
+			}
+			double cval=(*covar)[uIter->first];
+			pot->updateCovariance(vIter->first,uIter->first,cval);
+			pot->updateCovariance(uIter->first,vIter->first,cval);
+			if(uIter->first!=expVarID && vIter->first!=expVarID)
+			{
+				parentPot->updateCovariance(vIter->first,uIter->first,cval);
+				parentPot->updateCovariance(uIter->first,vIter->first,cval);
+			}
+		}
+	}
+	//pot->makeValidJPD(ludecomp,perm);
+	int status=pot->initMBCovMean();
+	
+
+	if(status!=0)
+	{
+		cout <<"Determinant too small, not going ahead with potential adding " <<regName<< " in cell "<< cellType  << endl;
+		//pot->dumpPotential(cout); // DC doesn't think we need to print this right now
+		map<string,int>::iterator rIter=regSet.find(regName);
+		regSet.erase(rIter);
+		delete pot;
+		return 0;
+	}
+
+	//Now we have estimated everything! Now we can use the same logic as before to get the score
+	//double currScore=getScoreForPot(geneSet,pot,cellType);
+	double currScore=getScoreForPot_Tracetrick(geneSet,pot,parentPot,cellType);
+	double oldScore=e->getLLScore();
+	double impr=currScore-oldScore;
+	mean.clear();
+	for(map<int,INTDBLMAP*>::iterator idIter=gCovar.begin();idIter!=gCovar.end();idIter++)
+	{
+		idIter->second->clear();
+		delete idIter->second;
+	}
+	//potPtr=&pot;
+	*potPtr=pot;
+	//potPtr=pot;
+	gCovar.clear();
+	map<string,int>::iterator rIter=regSet.find(regName);
+	regSet.erase(rIter);
+
+	return impr;
+}
 
 /**
 * Copies the contents of one covariance matrix into another.
@@ -3084,7 +2942,7 @@ SpeciesClusterManager::computeBaseUnnormCovar(Expert* e,string& cellType, map<in
 	return 0;
 }
 
-
+//This could be optimized by using the covariance trick.
 double
 SpeciesClusterManager::getScoreForPot(map<string,int>& geneSet,DRMNPotential* apot, string& cellType)
 {
@@ -3104,7 +2962,36 @@ SpeciesClusterManager::getScoreForPot(map<string,int>& geneSet,DRMNPotential* ap
 	double p_score=score-((paramCnt/2)*log(geneSet.size()));
 	//pll=unreg_pll-(0.5*log(evMgr->getTestSet().size()));
 	//return pll;
+	double score_tt=apot->computeLL_Tracetrick(geneSet.size());
 	return score;
+	//return p_score;
+}
+
+//This could be optimized by using the covariance trick.
+double
+SpeciesClusterManager::getScoreForPot_Tracetrick(map<string,int>& geneSet,DRMNPotential* apot, DRMNPotential* parentPot, string& cellType)
+{
+	//Each row is a sample/gene
+	/*double score=0;
+	EvidenceManager* evMgr=evMgrSet[cellType];
+	for(map<string,int>::iterator gIter=geneSet.begin();gIter!=geneSet.end();gIter++)
+	{
+		EMAP* evidMap=evMgr->getEvidenceAt((string&)gIter->first);
+		double ll=apot->getCondPotValueFor(evidMap);
+		score=score+log(ll);
+	}
+	double varCnt=apot->getAssocVariables().size();
+	double paramCnt=2*varCnt;
+	//double paramCnt=varCnt;
+	paramCnt=paramCnt+((varCnt*(varCnt-1))/2);
+	double p_score=score-((paramCnt/2)*log(geneSet.size()));*/
+	//pll=unreg_pll-(0.5*log(evMgr->getTestSet().size()));
+	//return pll;
+	double score_tt1=apot->computeLL_Tracetrick(geneSet.size());
+	double score_tt2=parentPot->computeLL_Tracetrick(geneSet.size());
+	double score_tt=score_tt1-score_tt2;
+	//return score;
+	return score_tt;
 	//return p_score;
 }
 
@@ -3132,7 +3019,7 @@ SpeciesClusterManager::expectationStep_Species(string& specName, CLUSTERSET* exp
 		{
 			Expert* e=eIter->second;
 			double pdf=e->getOutputPDF(exprProf);
-			if(isnan(pdf))
+			if(std::isnan(pdf))
 			{
 				cout <<"PDF is nan for " << specName << " " << vIter->first << " for expert " << eIter->first << endl;
 			}
@@ -3168,7 +3055,7 @@ SpeciesClusterManager::expectationStep_DRMN_Species(string& specName, CLUSTERSET
 		{
 			Expert* e=eIter->second;
 			double pdf=e->getDRMNProb(evidSet);
-			if(isnan(pdf))
+			if(std::isnan(pdf))
 			{
 				cout <<"PDF is nan for " << specName << " " << vIter->first << " for expert " << eIter->first << endl;
 			}
@@ -3200,7 +3087,7 @@ SpeciesClusterManager::doInferenceForGene(string& geneName, string& speciesName)
 	{
 		Expert* e=eIter->second;
 		double pdf=e->getDRMNProb(evidence);
-		if(isnan(pdf))
+		if(std::isnan(pdf))
 		{
 			cout <<"PDF is nan for expert " << eIter->first << endl;
 		}
@@ -5305,26 +5192,301 @@ SpeciesClusterManager::printCurrentData(const char* allOut)
 	return 0;*/
 }
 
+int
+SpeciesClusterManager::estimateCov(Expert* e, Matrix* X, Matrix* Y, map<int,INTDBLMAP*>& gCovar)
+{
+	map<string,int>& regSet=e->getCurrentRegSet(); // current regulators
+	for(map<string,int>::iterator vIter=regSet.begin();vIter!=regSet.end();vIter++)
+	{
+		int vXID = allRegulatorIndex[vIter->first];
+		int vID  = varNameIDMap[vIter->first];
+		gsl_vector_view Dv = X->getRowView(vXID);
 
-int 
-SpeciesClusterManager::setMode(LearnMode lm, int m1, int m2)
+		INTDBLMAP* vcov=NULL;
+		if(gCovar.find(vID)==gCovar.end())
+		{
+			vcov=new INTDBLMAP;
+			gCovar[vID]=vcov;
+		}
+		else
+		{
+			vcov=gCovar[vID];
+		}
+
+		for(map<string,int>::iterator uIter=vIter;uIter!=regSet.end();uIter++)
+		{
+			int uXID = allRegulatorIndex[uIter->first];
+			int uID  = varNameIDMap[uIter->first];
+			gsl_vector_view Du = X->getRowView(uXID);
+			double uvcov = gsl_stats_covariance (Du.vector.data, Du.vector.stride, Dv.vector.data, Dv.vector.stride, Du.vector.size); 
+			if (std::isnan(uvcov))
+			{
+				cout << "vID:" << vID << ",uID:" << uID << " is nan." << endl;
+				uvcov = 0;
+			}
+
+			INTDBLMAP* ucov=NULL;
+			if(gCovar.find(uID)==gCovar.end())
+			{
+				ucov=new INTDBLMAP;
+				gCovar[uID]=ucov;
+			}
+			else
+			{
+				ucov=gCovar[uID];
+			}
+			if (uID == vID)
+			{
+				uvcov += 0.001;
+			}
+			(*vcov)[uID]=uvcov;
+			(*ucov)[vID]=uvcov;
+		}
+		int uID=varNameIDMap["Expression"];
+		gsl_vector_view Du = Y->getRowView(0);
+		double uvcov = gsl_stats_covariance (Du.vector.data, Du.vector.stride, Dv.vector.data, Dv.vector.stride, Du.vector.size); 
+		if (std::isnan(uvcov))
+		{
+			cout << "vID:" << vID << ",uID:" << uID << " is nan." << endl;
+			uvcov = 0;
+		}
+
+		INTDBLMAP* ucov=NULL;
+		if(gCovar.find(uID)==gCovar.end())
+		{
+			ucov=new INTDBLMAP;
+			gCovar[uID]=ucov;
+		}
+		else
+		{
+			ucov=gCovar[uID];
+		}
+		(*vcov)[uID]=uvcov;
+		(*ucov)[vID]=uvcov;
+	}
+	int uID=varNameIDMap["Expression"];
+	gsl_vector_view Du = Y->getRowView(0);
+	double uvar  = gsl_stats_covariance (Du.vector.data, Du.vector.stride, Du.vector.data, Du.vector.stride, Du.vector.size); 
+	INTDBLMAP* ucov=NULL;
+	if(gCovar.find(uID)==gCovar.end())
+	{
+		ucov=new INTDBLMAP;
+		gCovar[uID]=ucov;
+	}
+	else
+	{
+		ucov=gCovar[uID];
+	}
+	(*ucov)[uID]=uvar+0.001;
+	return 0;
+}
+
+
+int
+SpeciesClusterManager::estimateCov_All(Expert* e, Matrix* X, Matrix* Y, map<int,INTDBLMAP*>& gCovar)
+{
+	for(map<string,int>::iterator vIter=allRegulatorIndex.begin();vIter!=allRegulatorIndex.end();vIter++)
+	{
+		int vXID = allRegulatorIndex[vIter->first];
+		int vID  = varNameIDMap[vIter->first];
+		gsl_vector_view Dv = X->getRowView(vXID);
+
+		INTDBLMAP* vcov=NULL;
+		if(gCovar.find(vID)==gCovar.end())
+		{
+			vcov=new INTDBLMAP;
+			gCovar[vID]=vcov;
+		}
+		else
+		{
+			vcov=gCovar[vID];
+		}
+
+		//for(map<string,int>::iterator uIter=vIter;uIter!=regSet.end();uIter++)
+		for(map<string,int>::iterator uIter=vIter;uIter!=allRegulatorIndex.end();uIter++)
+		{
+			int uXID = allRegulatorIndex[uIter->first];
+			int uID  = varNameIDMap[uIter->first];
+			gsl_vector_view Du = X->getRowView(uXID);
+			double uvcov = gsl_stats_covariance (Du.vector.data, Du.vector.stride, Dv.vector.data, Dv.vector.stride, Du.vector.size); 
+			if (std::isnan(uvcov))
+			{
+				cout << "vID:" << vID << ",uID:" << uID << " is nan." << endl;
+				uvcov = 0;
+			}
+
+			INTDBLMAP* ucov=NULL;
+			if(gCovar.find(uID)==gCovar.end())
+			{
+				ucov=new INTDBLMAP;
+				gCovar[uID]=ucov;
+			}
+			else
+			{
+				ucov=gCovar[uID];
+			}
+			if (uID == vID)
+			{
+				uvcov += 0.001;
+			}
+			(*vcov)[uID]=uvcov;
+			(*ucov)[vID]=uvcov;
+		}
+		int uID=varNameIDMap["Expression"];
+		gsl_vector_view Du = Y->getRowView(0);
+		double uvcov = gsl_stats_covariance (Du.vector.data, Du.vector.stride, Dv.vector.data, Dv.vector.stride, Du.vector.size); 
+		if (std::isnan(uvcov))
+		{
+			cout << "vID:" << vID << ",uID:" << uID << " is nan." << endl;
+			uvcov = 0;
+		}
+
+		INTDBLMAP* ucov=NULL;
+		if(gCovar.find(uID)==gCovar.end())
+		{
+			ucov=new INTDBLMAP;
+			gCovar[uID]=ucov;
+		}
+		else
+		{
+			ucov=gCovar[uID];
+		}
+		(*vcov)[uID]=uvcov;
+		(*ucov)[vID]=uvcov;
+	}
+	int uID=varNameIDMap["Expression"];
+	gsl_vector_view Du = Y->getRowView(0);
+	double uvar  = gsl_stats_covariance (Du.vector.data, Du.vector.stride, Du.vector.data, Du.vector.stride, Du.vector.size); 
+	INTDBLMAP* ucov=NULL;
+	if(gCovar.find(uID)==gCovar.end())
+	{
+		ucov=new INTDBLMAP;
+		gCovar[uID]=ucov;
+	}
+	else
+	{
+		ucov=gCovar[uID];
+	}
+	(*ucov)[uID]=uvar+0.001;
+	return 0;
+}
+
+
+int
+SpeciesClusterManager::addCov(Expert* e, Matrix* X, Matrix* Y, map<int,INTDBLMAP*>& gCovar, string regName)
+{
+	map<string,int>& regSet=e->getCurrentRegSet(); // current regulators
+	int vXID = allRegulatorIndex[regName];
+	int vID  = varNameIDMap[regName];
+	gsl_vector_view Dv = X->getRowView(vXID);
+
+	INTDBLMAP* vcov=NULL;
+	if(gCovar.find(vID)==gCovar.end())
+	{
+		vcov=new INTDBLMAP;
+		gCovar[vID]=vcov;
+	}
+	else
+	{
+		vcov=gCovar[vID];
+	}
+
+	for(map<string,int>::iterator uIter=regSet.begin();uIter!=regSet.end();uIter++)
+	{
+		int uXID = allRegulatorIndex[uIter->first];
+		int uID  = varNameIDMap[uIter->first];
+		gsl_vector_view Du = X->getRowView(uXID);
+double uvcov = gsl_stats_covariance (Du.vector.data, Du.vector.stride, Dv.vector.data, Dv.vector.stride, Du.vector.size); 
+		if (std::isnan(uvcov))
+		{
+			cout << "vID:" << vID << ",uID:" << uID << " is nan." << endl;
+			uvcov = 0;
+		}
+
+		INTDBLMAP* ucov=NULL;
+		if(gCovar.find(uID)==gCovar.end())
+		{
+			ucov=new INTDBLMAP;
+			gCovar[uID]=ucov;
+		}
+		else
+		{
+			ucov=gCovar[uID];
+		}
+		if (uID == vID)
+		{
+			uvcov += 0.001;
+		}
+		if(vcov->find(uID)!=vcov->end())
+		{
+			cout <<"vcov already has an entry " << (*vcov)[uID] << " and the new val is " << uvcov << endl;
+		}
+		else
+		{
+			(*vcov)[uID]=uvcov;
+			(*ucov)[vID]=uvcov;
+		}
+	}
+	int uID=varNameIDMap["Expression"];
+	gsl_vector_view Du = Y->getRowView(0);
+double uvcov = gsl_stats_covariance (Du.vector.data, Du.vector.stride, Dv.vector.data, Dv.vector.stride, Du.vector.size); 
+	if (std::isnan(uvcov))
+	{
+		cout << "vID:" << vID << ",uID:" << uID << " is nan." << endl;
+		uvcov = 0;
+	}
+
+	INTDBLMAP* ucov=NULL;
+	if(gCovar.find(uID)==gCovar.end())
+	{
+		ucov=new INTDBLMAP;
+		gCovar[uID]=ucov;
+	}
+	else
+	{
+		ucov=gCovar[uID];
+	}
+	if(vcov->find(uID)!=vcov->end())
+	{
+		cout <<"vcov already has expression entry " << (*vcov)[uID] << " and the new val is " << uvcov << endl;
+	}
+	else
+	{
+		(*vcov)[uID]=uvcov;
+		(*ucov)[vID]=uvcov;
+	}
+	return 0;
+}
+
+int
+SpeciesClusterManager::setMode(LearnMode lm, double r1, double r2, double r3)
 {
 	learnMode = lm;
-	minRegSize = m1;
-	maxRegSize = m2;
+	rho1 = r1;
+	rho2 = r2;
+	rho3 = r3;
+	return 0;
 }
 
 int 
-SpeciesClusterManager::learnLEAST(vector<Task_T*>* allt,vector<Matrix*>& allW, double newlambda)
+SpeciesClusterManager::learnLEAST(vector<Task_T*>* allt,vector<Matrix*>& allW)
 {
+	map<int,vector<int>> tree;
+	for (int i=0;i<allt->size()-1;i++)
+	{
+		vector<int> e;
+		e.push_back(i+1);
+		tree[i] = e;
+	}
 	GenericLearner* ll;
 	if (learnMode == LEASTDIRTY)
 	{
+		cout << "LEASTDIRTY!" << endl;
 	//ll = new LeastDirty(newlambda,200);
 		vector<Matrix*> allP;
 		vector<Matrix*> allQ;
-		ll = new LeastDirty(newlambda,newlambda);
-		//ll = new LeastDirty(newlambda,200);
+		//ll = new LeastDirty(newlambda,newlambda);
+		ll = new LeastDirty(rho1,rho2);
 		ll->doAGM(allt,allW,allP,allQ);
 		delete ll;
 		clearAllW(allP);
@@ -5332,8 +5494,16 @@ SpeciesClusterManager::learnLEAST(vector<Task_T*>* allt,vector<Matrix*>& allW, d
 	}
 	else if (learnMode == LEASTL21)
 	{
-		ll = new LeastL21(newlambda,100);
+		cout << "LEASTL21!" << endl;
+		ll = new LeastL21(rho1,rho2);
 		ll->doAGM(allt,allW);
+		delete ll;
+	}
+	else if (learnMode == LEASTFUSED)
+	{
+		cout << "LEASTFUSED!" << endl;
+		ll = new LeastCFGLasso(rho1,rho2,rho3);
+		ll->doAGM(allt,allW,tree);
 		delete ll;
 	}
 	else
@@ -5344,3 +5514,421 @@ SpeciesClusterManager::learnLEAST(vector<Task_T*>* allt,vector<Matrix*>& allW, d
 	return 0;
 }
 
+double
+SpeciesClusterManager::makeOnePotential(Expert* e,vector<string>& regNames,string& cellType,bool& regStatus,DRMNPotential** potPtr, Matrix* X, Matrix* Y) 
+{
+	//SpeciesFeatureManager* sfMgr=speciesFeatSet[cellType];
+	EvidenceManager* evMgr=evMgrSet[cellType];
+	map<string,int>& regSet=e->getCurrentRegSet();
+	
+	map<string,int>& geneSet=e->getGeneSet();
+
+	// if geneset is 0, issue? this means the expert has no genes! :(
+	// I think this might be happening earlier
+	if (geneSet.size()==0)
+	{
+		cout << "geneset size 0 for expert!" << endl;
+		return 0;
+	}
+
+	//We will add the regulator to this module's regulator set and remove it when we are done
+	regSet.clear();
+	for(int i=0;i<regNames.size();i++)
+	{
+		string regName = regNames[i];
+		regSet[regName]=0;
+	}
+	//We are going to use our EvidenceManager associated with this cell type to compute everything. No need to make copies of the data. Ew.
+	int colID=0;
+	//First we will compute the mean, and then the covariance (this is the equivalent of calling populatePotential
+	//To compute the mean  we will first consider the mRNA levels 
+	//Then we can calculate the coefficients using something initMBCovMean
+
+	cout << "estimateMean:" << endl;
+	INTDBLMAP mean; 
+	for(map<string,int>::iterator geneIter=geneSet.begin();geneIter!=geneSet.end();geneIter++)
+	{
+		EMAP* evidMap=evMgr->getEvidenceAt((string&)geneIter->first);
+		// first get expression
+		int varID=varNameIDMap["Expression"];
+		//Evidence* evid=(*evidMap)[varID];
+		//double val=evid->getEvidVal();
+		double val=(*evidMap)[varID];
+		if(mean.find(varID)==mean.end())
+		{
+			mean[varID]=val;
+		}
+		else	
+		{
+			mean[varID]=mean[varID]+val;
+		}
+		//Now get the existing and new regulators
+		for(map<string,int>::iterator rIter=regSet.begin();rIter!=regSet.end();rIter++)
+		{
+			int varID=varNameIDMap[rIter->first];
+			//Evidence* evid=(*evidMap)[varID];
+			//double val=evid->getEvidVal();
+			double val=(*evidMap)[varID];
+			if(mean.find(varID)==mean.end())
+			{
+				mean[varID]=val;
+			}
+			else	
+			{
+				mean[varID]=mean[varID]+val;
+			}
+		}
+	}
+	
+	//Now we just normalize to get the mean
+	for(INTDBLMAP_ITER vIter=mean.begin();vIter!=mean.end();vIter++)
+	{
+		double val=vIter->second/geneSet.size();
+		vIter->second=val;
+	}
+	//Mean done. We now need the covariance. 
+	//We can just go over each evidence and populate the covariance entry which we will then normalize
+
+	// NEW STUFF: We'll copy in the base unnormalized covariance matrix.
+	map<int,INTDBLMAP*> gCovar;
+	//computeBaseUnnormCovar(e, cellType, gCovar);
+	cout << "estimateCov:" << endl;
+	estimateCov(e, X, Y, gCovar);
+	cout << "gCovar:" << gCovar.size() << endl;
+
+	DRMNPotential* pot=new DRMNPotential;
+	DRMNPotential* parentPot=new DRMNPotential;
+	int expVarID=-1;
+	for(INTDBLMAP_ITER vIter=mean.begin();vIter!=mean.end();vIter++)
+	{
+		string& vName=varIDNameMap[vIter->first];
+		if(strcmp(vName.c_str(),"Expression")==0)
+		{
+			pot->setAssocVariable(vIter->first,DRMNPotential::FACTOR);
+			expVarID=vIter->first;
+		}
+		else
+		{
+			pot->setAssocVariable(vIter->first,DRMNPotential::MARKOV_BNKT);
+			parentPot->setAssocVariable(vIter->first,DRMNPotential::MARKOV_BNKT);
+		}
+	}
+	pot->potZeroInit();
+	parentPot->potZeroInit();
+	//populate potential using mean and covariance
+	for(INTDBLMAP_ITER vIter=mean.begin();vIter!=mean.end();vIter++)
+	{
+		double m=0;
+		double cov=0;
+		INTDBLMAP* covar=NULL;
+		m=mean[vIter->first];
+		
+		covar=gCovar[vIter->first];
+		pot->updateMean(vIter->first,m);
+		if(vIter->first!=expVarID)
+		{
+			parentPot->updateMean(vIter->first,m);
+		}
+		for(INTDBLMAP_ITER uIter=vIter;uIter!=mean.end();uIter++)
+		{
+			double cval=(*covar)[uIter->first];
+			pot->updateCovariance(vIter->first,uIter->first,cval);
+			pot->updateCovariance(uIter->first,vIter->first,cval);
+			if(uIter->first!=expVarID && vIter->first!=expVarID)
+			{
+				parentPot->updateCovariance(vIter->first,uIter->first,cval);
+				parentPot->updateCovariance(uIter->first,vIter->first,cval);
+			}
+		}
+	}
+	//pot->makeValidJPD(ludecomp,perm);
+	int status=pot->initMBCovMean();
+	
+
+	if(status!=0)
+	{
+		cout <<"Determinant too small, not going ahead with making potential in cell " << cellType  << endl;
+		delete pot;
+		return 0;
+	}
+
+	//Now we have estimated everything! Now we can use the same logic as before to get the score
+	//double currScore=getScoreForPot(geneSet,pot,cellType);
+	double currScore=getScoreForPot_Tracetrick(geneSet,pot,parentPot,cellType);
+	double oldScore=e->getLLScore();
+	double impr=currScore-oldScore;
+	mean.clear();
+	for(map<int,INTDBLMAP*>::iterator idIter=gCovar.begin();idIter!=gCovar.end();idIter++)
+	{
+		idIter->second->clear();
+		delete idIter->second;
+	}
+	gCovar.clear();
+	//potPtr=&pot;
+	*potPtr=pot;
+	//potPtr=pot;
+
+	return impr;
+}
+int
+SpeciesClusterManager::countAllW(vector<Matrix*> allW)
+{
+	int cnt = 0;
+	for(int i=0;i<allW.size();i++)
+	{
+		Matrix* W = allW[i];
+		for (int j=0;j<W->getRowCnt();j++)
+		{
+			double v = W->getValue(j,0);
+			//cout << "# " << v << endl;
+			//printf("# %.20f\n", v);
+			//if ( fabs(v)>0.001 )
+			if ( v != 0 )
+			{
+				cnt ++;
+			}
+		}
+	}
+	cnt = cnt/allW.size();
+	return cnt;
+}
+
+int
+SpeciesClusterManager::clearAllW(vector<Matrix*>& allW)
+{
+	for(int i=0;i<allW.size();i++)
+	{
+		Matrix* W = allW[i];
+		delete W;
+	}
+	allW.clear();
+	return 0;
+}
+
+int
+SpeciesClusterManager::estimateRegProgs_PerModule_LASSO(int moduleID)
+{
+	cout << "Updating regulatory program for " << moduleID << " ";
+	time_t result = time(0);
+	cout << std::asctime(localtime(&result)) << endl;
+	if (learnMode == LEASTDIRTY)
+	{
+		cout << "Doing LeastDIRTY!" << endl;
+	}
+	else if (learnMode == LEASTL21)
+	{
+		cout << "Doing LeastL21!" << endl;
+	}
+	else if (learnMode == LEASTFUSED)
+	{
+		cout << "Doing LeastFUSED!" << endl;
+	}
+	
+	vector<Task_T*>* allt = new vector<Task_T*>;
+	map<string,Matrix*> cell2exp;
+	map<string,Matrix*> cell2feat;
+	for(map<string,CLUSTERSET*>::iterator sIter=speciesExpertSet.begin();sIter!=speciesExpertSet.end();sIter++)
+	{
+		string s=sIter->first;
+		CLUSTERSET* expertSet=sIter->second;
+		Expert* expert=(*expertSet)[moduleID];
+		map<string,int>& geneSet=expert->getGeneSet();
+		//SpeciesFeatureManager* sfMgr=speciesFeatSet[s];
+
+		map<string,int> temp_gene2id;
+		temp_gene2id.clear();
+		int tgi=0;
+		for (map<string,int>::iterator gitr = geneSet.begin(); gitr!=geneSet.end(); gitr++)
+		{
+			string gname = gitr->first;
+			temp_gene2id[gname] = tgi;
+			tgi++;
+		}
+
+		int regCnt = allRegulatorIndex.size();
+		int geneCnt = geneSet.size();
+		cout << s << " has " << geneCnt << " genes." << endl;
+		EvidenceManager* evMgr=evMgrSet[s];
+		Matrix* Y = new Matrix(geneCnt,1);
+		map<string,int>* YNames = new map<string,int>;
+		for (map<string,int>::iterator gitr = geneSet.begin(); gitr!=geneSet.end(); gitr++)
+		{
+			string gname = gitr->first;
+			int gi=temp_gene2id[gname];
+			EMAP* evidMap=evMgr->getEvidenceAt(gname);
+			int varID=varNameIDMap["Expression"];
+			//Evidence* evid=(*evidMap)[varID];
+			//double val=evid->getEvidVal();
+			double val=(*evidMap)[varID];
+			Y->setValue(val,gi,0);
+			(*YNames)[gname]=gi;
+		}
+		Matrix* YT = Y->transMatrix();
+		//YT->rowStandardize();
+		cell2exp[s] = YT;
+		Matrix* X = new Matrix(regCnt,geneCnt);
+		for (map<string,int>::iterator gitr = geneSet.begin(); gitr!=geneSet.end(); gitr++)
+		{
+			string gname = gitr->first;
+			int gi = temp_gene2id[gitr->first];
+			EMAP* evidMap = evMgr->getEvidenceAt(gname);
+			for (map<string,int>::iterator ritr=allRegulatorIndex.begin(); ritr!=allRegulatorIndex.end();ritr++)
+			{
+				int ri=ritr->second;
+				int varID=varNameIDMap[ritr->first];
+				//Evidence* evid = (*evidMap)[varID];
+				//double val = evid->getEvidVal();
+				double val = (*evidMap)[varID];
+				X->setValue(val,ri,gi);
+			}
+		}
+		Matrix* XX = X->copyMe();
+		//XX->rowStandardize();
+		cell2feat[s] = XX;
+		X->rowStandardize();
+		Y->colStandardize();
+		Task_T* t = new Task_T;
+		t->YNames = YNames;
+		t->X = X;
+		t->Y = Y;
+		t->name = s;
+		allt->push_back(t);
+	}
+	vector<Matrix*> allW;
+	learnLEAST(allt,allW);
+	int cnt = countAllW(allW);
+	cout << "We got (average): " << cnt << " regulators." << endl;
+	/*
+	double oldlambda=0;
+	double newlambda=100;
+	while (true)
+	{
+		cout << "Using lambda: " << newlambda << endl;
+		learnLEAST(allt,allW,newlambda);
+		int cnt = countAllW(allW);
+		cout << "We got (average): " << cnt << " regulators." << endl;
+		//if (cnt==0)
+		if (cnt<minRegSize)
+		{
+			newlambda = (newlambda+oldlambda)/2;
+			clearAllW(allW);
+		}
+		else if (cnt > maxRegSize)
+		{
+			if (newlambda>100000)
+			{
+				cout << "We failed to find the right number of regulators, stopping at lambda=" << newlambda << endl;
+				break;
+			}
+			oldlambda = newlambda;
+			newlambda = 2*oldlambda;
+			clearAllW(allW);
+		}
+		else
+		{
+			break;
+		}
+	}
+	*/
+
+
+	result = time(0);
+	cout << "Finished LeastL21" << " ";
+	cout << std::asctime(localtime(&result)) << endl;
+	
+	result = time(0);
+	cout << "Start adding" << " ";
+	cout << std::asctime(localtime(&result)) << endl;
+
+	for(int i=0;i<allW.size();i++)
+	{
+		Task_T* t = allt->at(i);
+		string  s = t->name;
+		Matrix* W = allW[i];
+		Matrix* X = cell2feat[s];
+		Matrix* Y = cell2exp[s];
+
+		CLUSTERSET* expertSet=speciesExpertSet[s];
+		Expert* expert=(*expertSet)[moduleID];
+		//SpeciesFeatureManager* sfMgr=speciesFeatSet[s];
+		vector<string> regNames;
+		for (map<string,int>::iterator ritr=allRegulatorIndex.begin(); ritr!=allRegulatorIndex.end();ritr++)
+		{
+			int ri=ritr->second;
+			string rname = ritr->first;
+			double v = W->getValue(ri,0);
+			//Add this one
+			//if ( fabs(v)>0.001 )
+			if ( v != 0 )
+			{
+				regNames.push_back(rname);
+				//cout << ".";
+			}
+		}
+		cout << "I have " << regNames.size() << " regulators. Let's make a POTENTIAL!" << endl;
+		if (regNames.size() == 0)
+		{
+			continue;
+		}
+		bool regulatorStatus=false;
+		DRMNPotential* aPot=NULL;
+		double scoreImprovement_PerCelltype=makeOnePotential(expert,regNames,s,regulatorStatus,&aPot,X,Y);
+
+		if (aPot == NULL)
+		{
+			cout << "Something went wrong , skipping this one" << endl;
+			//exit(0);
+		}
+		else
+		{
+			double currScore=expert->getLLScore();
+			expert->setLLScore(currScore+scoreImprovement_PerCelltype);
+			DRMNPotential* tPot=expert->getDRMNPotential();
+			if(tPot!=NULL)
+			{
+				delete tPot;
+			}
+			expert->setDRMNPotential(aPot);
+		}
+		cout << endl;
+	}
+	
+	cout << "Done adding" << " ";
+	cout << std::asctime(localtime(&result)) << endl;
+
+	cout <<"Done learning regulators for moduleID " << moduleID <<endl;
+	for(map<string,CLUSTERSET*>::iterator sIter=speciesExpertSet.begin();sIter!=speciesExpertSet.end();sIter++)
+	{
+		CLUSTERSET* experts=speciesExpertSet[sIter->first];
+		Expert* e=(*experts)[moduleID];
+		map<string,int>& regSet=e->getCurrentRegSet();
+		if (regSet.size()==0)
+		{
+			cout << "No regulators for Module" << moduleID << endl;
+		}
+		for(map<string,int>::iterator rIter=regSet.begin();rIter!=regSet.end();rIter++)
+		{
+			cout << sIter->first<< " Module"<<moduleID<<"-" << rIter->first <<endl;
+		}
+	}
+
+	for (int i=0;i<allt->size();i++)
+	{
+		Task_T* t = allt->at(i);
+		string s = t->name;
+		Matrix* XX = cell2feat[s];
+		delete XX;
+		Matrix* Y  = cell2exp[s];
+		delete Y;
+		delete t;
+		Matrix* W = allW[i];
+		delete W;
+	}
+	allt->clear();
+	delete allt;
+	allW.clear();
+	cell2feat.clear();
+	cell2exp.clear();
+
+	return 0;
+}

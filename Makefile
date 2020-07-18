@@ -1,5 +1,5 @@
 LFLAG = -lgsl -lgslcblas 
-SRC = Framework.C LeastDirty.C LeastLasso.C LeastL21.C GenericLearner.C Task.C SpeciesDistManager.C	SpeciesClusterManager.C	Expert.C Matrix.C GeneExpManager.C MappedOrthogroupReader.C     MappedOrthogroup.C GeneMap.C GeneTreeManager.C GammaManager.C Gamma.C GeneTree.C GeneNameMapper.C NewickReader.C SpeciesFeatureManager.C DRMNPotential.C common/Error.C	   common/EvidenceManager.C  common/Evidence.C  common/VariableManager.C common/Variable.C
+SRC = Framework.C SpeciesDistManager.C	SpeciesClusterManager.C	Expert.C Matrix.C GeneExpManager.C MappedOrthogroupReader.C     MappedOrthogroup.C GeneMap.C GeneTreeManager.C GammaManager.C Gamma.C GeneTree.C GeneNameMapper.C NewickReader.C SpeciesFeatureManager.C DRMNPotential.C common/Error.C	   common/EvidenceManager.C  common/Evidence.C  common/VariableManager.C common/Variable.C LeastDirty.C LeastCFGLasso.C LeastLasso.C LeastL21.C GenericLearner.C Task.C
 
 LIBPATH = lib
 INCLPATH1 = include

@@ -9,6 +9,14 @@
 
 using namespace std;
 
+GenericLearner::GenericLearner()
+{
+	lambda = 0;
+	beta   = 0;
+	maxItr = 1000;
+	tol    = 1e-4;
+}
+
 GenericLearner::GenericLearner(double l, double b)
 {
 	lambda = l;
@@ -265,6 +273,12 @@ GenericLearner::predict(vector<Task_T*>* allt, vector<Matrix*> allW, vector<Matr
 		allPY.push_back(P);
 		delete T;
 	}
+	return 0;
+}
+
+int
+GenericLearner::doAGM(vector<Task_T*>* allt, vector<Matrix*>& allW, map<int,vector<int>>& tree)
+{
 	return 0;
 }
 

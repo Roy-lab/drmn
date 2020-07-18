@@ -428,8 +428,6 @@ DRMNPotential::generateSample(map<int,double>* evidenceSet, gsl_rng* r)
 	return x;
 }
 
-
-
 int 
 DRMNPotential::initMBCovMean()
 {
@@ -479,17 +477,13 @@ DRMNPotential::initMBCovMean()
 		}
 	}
 	double det=mbcov->detMatrix();
-	//cout <<"Determinant is " << det <<endl;
-	//if(fabs(det)<1e-20)
-	//{
-	//	cout <<"Determinant is " << det << " too small" <<endl;
-	//	char tname[1024];
-	//	sprintf(tname,"det_mbcov_%d.txt",mbcov);
-	//	mbcov->writeToFile(tname);
-	//	delete mbcov;
-	//	delete mbmargvar;
-	//	return -1;
-	//}
+	if(fabs(det)<1e-200)
+	{
+		cout <<"Determinant is " << det << " too small" <<endl;
+		delete mbcov;
+		delete mbmargvar;
+		return -1;
+	}
 	Matrix* covInv=mbcov->invMatrix();
 	Matrix* prod1=mbmargvar->multiplyMatrix(covInv);
 	for(INTINTMAP_ITER aIter=localMatIDMap.begin();aIter!=localMatIDMap.end();aIter++)
@@ -524,15 +518,25 @@ DRMNPotential::getCondPotValueFor(INTDBLMAP& assignment)
 	double newmean=0;
 	for(INTDBLMAP_ITER aIter=mbcondMean_Vect.begin();aIter!=mbcondMean_Vect.end();aIter++)
 	{
+		double aval=0;
 		if(assignment.find(aIter->first)==assignment.end())
 		{
-			cout <<"Fatal error! No variable assignment for " << aIter->first << endl;
-			exit(0);
+			cout <<"Error! No variable assignment for " << aIter->first << endl;
+			cout <<"Set it to 0!" << endl;
+			//exit(0);
 		}
-		double aval=assignment[aIter->first];
+		else
+		{
+			aval=assignment[aIter->first];
+		}
 		newmean=newmean+(aval*aIter->second);
 	}
 	newmean=newmean+mbcondMean_Part;
+	if (mbcondVar == 0)
+	{
+		cout <<"mbcondVar is 0, set to 1." << endl;
+		mbcondVar=1;
+	}
 	double normsq=2*PI*mbcondVar;
 	double norm=sqrt(2*PI*mbcondVar);
 	norm=sqrt(normsq);
@@ -558,17 +562,28 @@ DRMNPotential::getCondPotValueFor(map<int,double>* evidMap)
 	double newmean=0;
 	for(INTDBLMAP_ITER aIter=mbcondMean_Vect.begin();aIter!=mbcondMean_Vect.end();aIter++)
 	{
+		double aval=0;
 		if(evidMap->find(aIter->first)==evidMap->end())
 		{
-			cout <<"Fatal error! No variable assignment for " << aIter->first << endl;
-			exit(0);
+			//cout <<"Fatal error! No variable assignment for " << aIter->first << endl;
+			//exit(0);
+			cout <<"Error! No variable assignment for " << aIter->first << endl;
+			cout <<"Set it to 0!" << endl;
+		}
+		else
+		{
+			aval=(*evidMap)[aIter->first];
 		}
 		//Evidence* evid=(*evidMap)[aIter->first];
 		//double aval=evid->getEvidVal();
-		double aval=(*evidMap)[aIter->first];
 		newmean=newmean+(aval*aIter->second);
 	}
 	newmean=newmean+mbcondMean_Part;
+	if (mbcondVar == 0)
+	{
+		cout <<"mbcondVar is 0, set to 1." << endl;
+		mbcondVar=1;
+	}
 	double normsq=2*PI*mbcondVar;
 	double norm=sqrt(2*PI*mbcondVar);
 	norm=sqrt(normsq);
@@ -589,13 +604,24 @@ DRMNPotential::computeLL_Tracetrick(int sampleSize)
 	double ll=0;
 	int dim=covariance->getRowCnt();
 	double constant=sampleSize*dim*log(2*PI);
+	if(inverse==NULL)
+	{
+		inverse=covariance->invMatrix();
+		determinant=covariance->detMatrix();
+	}
 	ll=((double) sampleSize) * log(determinant);
 	Matrix sos=Matrix(vIDMatIndMap.size(),vIDMatIndMap.size());
 	for(int i=0;i<dim;i++)
 	{
 		for(int j=0;j<dim;j++)
 		{
-			sos.setValue(covariance->getValue(i,j)*(sampleSize-1),i,j);
+			//sos.setValue(covariance->getValue(i,j)*(sampleSize-1),i,j);
+			double cv=covariance->getValue(i,j);
+			if(i==j)
+			{
+				cv=cv-0.001;
+			}
+			sos.setValue(cv*(sampleSize-1),i,j);
 		}
 	}
 	//sos.subtractScalar(0.001);
@@ -643,14 +669,20 @@ DRMNPotential::predictSample(map<int,double>* evidenceSet)
 	double newmean=0;
 	for(INTDBLMAP_ITER aIter=mbcondMean_Vect.begin();aIter!=mbcondMean_Vect.end();aIter++)
 	{
+		double aval=0;
 		if(evidenceSet->find(aIter->first)==evidenceSet->end())
 		{
-			cout <<"Fatal error! No variable assignment for " << aIter->first << endl;
-			exit(0);
+			cout <<"Error! No variable assignment for " << aIter->first << endl;
+			cout <<"Set it to 0!" << endl;
+			//exit(0);
+		}
+		else
+		{
+			aval=(*evidenceSet)[aIter->first];
 		}
 		//Evidence* evid=(*evidenceSet)[aIter->first];
 		//double aval=evid->getEvidVal();
-		double aval=(*evidenceSet)[aIter->first];
+		//double aval=(*evidenceSet)[aIter->first];
 		newmean=newmean+(aval*aIter->second);
 	}
 	newmean=newmean+mbcondMean_Part;

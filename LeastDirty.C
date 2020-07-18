@@ -73,16 +73,16 @@ LeastDirty::doCV(int folds, int myFold, int foldSeed, vector<Task_T*>* allt,map<
 int
 LeastDirty::doAGM(vector<Task_T*>* allt, vector<Matrix*>& allW, vector<Matrix*>& allP, vector<Matrix*>& allQ)
 {
-	vector<Matrix*> allXY;
-	vector<Matrix*> allXT;
-	vector<Matrix*> allXX;
-	vector<Matrix*> allP_old;
-	vector<Matrix*> allQ_old;
-	vector<Matrix*> allPn;
-	vector<Matrix*> allQn;
-	vector<Matrix*> allDP;
-	vector<Matrix*> allDQ;
-	vector<Matrix*> allGW;
+	vector<Matrix*> allXY;//cleaned
+	vector<Matrix*> allXT;//cleaned
+	vector<Matrix*> allXX;//cleaned
+	vector<Matrix*> allP_old;//cleaned
+	vector<Matrix*> allQ_old;//cleaned
+	vector<Matrix*> allPn;//cleaned
+	vector<Matrix*> allQn;//cleaned
+	vector<Matrix*> allDP;//cleaned
+	vector<Matrix*> allDQ;//cleaned
+	vector<Matrix*> allGW;//cleaned
 	vector<Matrix*> allY; // just to keep them outside Task_T
 	int task_cnt = allt->size();
 	int gene_cnt;
@@ -270,6 +270,10 @@ LeastDirty::doAGM(vector<Task_T*>* allt, vector<Matrix*>& allW, vector<Matrix*>&
 	clearMatVector(allQ_old);
 	clearMatVector(allXT);
 	clearMatVector(allXY);
+	clearMatVector(allXX);
+	clearMatVector(allDP);
+	clearMatVector(allDQ);
+	clearMatVector(allGW);
 	allY.clear();//don't delete Y Matrices
 	return 0;
 }
@@ -472,6 +476,7 @@ LeastDirty::proximalL11norm(vector<Matrix*> allQn, vector<Matrix*> allGW, double
 			Q->setValue(s*di,i,0);
 		}
 		allQ.push_back(Q);
+		delete D;
 	}
 	return 0;
 }
@@ -582,6 +587,7 @@ LeastDirty::getError(vector<Matrix*> allXT, vector<Matrix*> allW, vector<Matrix*
 		E->subtractWithMatrix(Y);
 		double en  = E->getFNorm();
 		e += (en*en);
+		delete E;
 	}
 	return e;
 }

@@ -20,6 +20,7 @@ class SpeciesFeatureManager
 	SpeciesFeatureManager();
 	~SpeciesFeatureManager();
 	int readFeatures(const char*);
+	int readFeatures_Efficient(const char*);
 	map<string,map<string,double>*>& getFeatures();
 
 	//SR: This will return the number of targets that have an overlap with the input gene set. Let the SpeciesFeatureManager take care of this.
@@ -46,12 +47,20 @@ class SpeciesFeatureManager
 	double getExpectedTargetCnt(string&);
 	//SR: Get the targets associated with a regulator
 	map<string,double>* getTargetsForRegulator(string&);
+	map<string,double>* getRegulatorsForTarget(string&);
+	double* getRegulatorsForTarget_Efficient(string&);
+	map<string,int>& getFeatureNames();
 	private:
 	map<string,map<string,double>*> motifNetwork;
+	map<string,map<string,double>*> tgtTFNetwork;
 	map<string,int> allTargets;
 	map<string,int> regulatorNameIDMap; 
 	
+	map<string,int> tfNameIDMap;
+	map<string,int> tgtNameIDMap;
 	double DEFAULT_VALUE;
+	double** motifNetwork_TFcentric;
+	double** motifNetwork_Tgtcentric;
 
 };
 #endif

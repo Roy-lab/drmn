@@ -37,7 +37,7 @@ class Framework
 	
 	int printResults(const char* outname); // prints out files to a directory
 
-	int setMode(LearnMode lm, int m1, int m2);
+	int setMode(LearnMode lm, double r1, double r2, double r3);
 
 	private:
 
@@ -91,9 +91,5 @@ class Framework
 
 	// Constant covariance
 	double constCov;
-
-	LearnMode learnMode;
-	int minRegSize;
-	int maxRegSize;
 };
 #endif

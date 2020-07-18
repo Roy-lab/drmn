@@ -2,6 +2,7 @@
 #include <iostream>
 #include <cstring>
 #include <math.h>
+#include <unistd.h>
 #include "Error.H"
 #include "Variable.H"
 #include "VariableManager.H"

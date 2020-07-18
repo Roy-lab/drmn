@@ -13,11 +13,13 @@ using namespace std;
 class GenericLearner
 {
 	public:
+		GenericLearner();
 		GenericLearner(double,double);
 		~GenericLearner();
 		virtual int doCV(int,int,int,vector<Task_T*>*,map<string,int>,const char*);
 		virtual int doAGM(vector<Task_T*>*,vector<Matrix*>&);
 		virtual int doAGM(vector<Task_T*>*,vector<Matrix*>&,vector<Matrix*>&,vector<Matrix*>&);
+		virtual int doAGM(vector<Task_T*>*,vector<Matrix*>&,map<int,vector<int>>&);
 	protected:
 		int maxItr;
 		double beta;

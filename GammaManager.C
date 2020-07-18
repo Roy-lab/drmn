@@ -392,6 +392,10 @@ GammaManager::getAllNodeScore(map<int,int>& testOGIDs)
 	{
 		int ogid=testIter->first;
 		Gamma* mygamma = getGammaForOGID(ogid);
+		if (mygamma == NULL)
+		{
+			continue;
+		}
 		double score=0;
 		score=mygamma->root->normTerm->getValue(0,0);
 		totalScore=totalScore+log(score);
@@ -1325,8 +1329,7 @@ GammaManager::updateTransitionMatrix(Gamma::Node* node)
 				double jointp=g*margp;
 				if(isnan(jointp) || isinf(jointp))
 				{
-					cout <<"Posterior is nan/inf for  "<< node->name <<" species " << node->species<< " cluster id "  << c
-					<< " gamma=" << g<< " marg=" << margp<< endl;
+					cout <<"Posterior is nan/inf for  "<< node->name <<" species " << node->species<< " cluster id "  << c << " gamma=" << g << " marg=" << margp<< endl;
 				}
 				gval->setValue(jointp,r,c);
 				anormterm=anormterm+jointp;
