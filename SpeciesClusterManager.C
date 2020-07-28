@@ -528,13 +528,14 @@ SpeciesClusterManager::readSpeciesData(const char* clusterFName, vector<string>&
 						(*evidMap)[varID]=regFeatVal;
 					}
 					//Now we just add the evidMap to evMgr;
-					evManager->addEvidenceWithName(evidMap,(string&)gIter->first);
+					//evManager->addEvidenceWithName(evidMap,(string&)gIter->first);
 				}
-				else
-				{
-					//We didn't have features, we skip this one
-					delete evidMap;
-				}
+				//else
+				//{
+				//	//We didn't have features, we skip this one
+				//	delete evidMap;
+				//}
+				evManager->addEvidenceWithName(evidMap,(string&)gIter->first);
 			}
 			delete featureManager;
 		}
@@ -701,7 +702,7 @@ SpeciesClusterManager::estimateDRMN(const char* outputDir)
 	{
 		// At this stage we have a set of modules, so we are going to attach regulators to each module
 		// This is like doing the M step in DRMN
-		estimateRegProgs();
+		estimateRegProgs(iter);
 		// Hard module assignment and recompute transition probs.
 		expectationStep_DRMN();
 		//re-estimate transition probabilities. Not needed because we are estimating transition probs in the expectationStep_DRMN
@@ -729,7 +730,7 @@ SpeciesClusterManager::estimateDRMN(const char* outputDir)
 		if (mkdir_err != 0)
 		{
 			cerr << "Cannot create output directory " << intermediateOutDir << " !!" << endl;
-			success=1; 
+			//success=1; 
 		}
 		success=abs(success)+abs(showDRMNResults(intermediateOutDir));
 		iter++;
@@ -1269,7 +1270,7 @@ SpeciesClusterManager::expectationStep_DRMN()
 * The goal is to go over each module and find the best regulator that explains the expression of the module.
 */
 int
-SpeciesClusterManager::estimateRegProgs()
+SpeciesClusterManager::estimateRegProgs(int iter)
 {
 	cout << "Doing DRMN maximization step 2: updating regulatory programs." << endl;
 	
@@ -1291,7 +1292,7 @@ SpeciesClusterManager::estimateRegProgs()
 		else
 		{
 			cout << "doing LASSO!" << endl;
-        	estimateRegProgs_PerModule_LASSO(k); // SR: only need to send the cluster ids here. 
+        	estimateRegProgs_PerModule_LASSO(k,iter); // SR: only need to send the cluster ids here. 
 		}
 	}
     return 0;
@@ -5515,7 +5516,7 @@ SpeciesClusterManager::learnLEAST(vector<Task_T*>* allt,vector<Matrix*>& allW)
 }
 
 double
-SpeciesClusterManager::makeOnePotential(Expert* e,vector<string>& regNames,string& cellType,bool& regStatus,DRMNPotential** potPtr, Matrix* X, Matrix* Y) 
+SpeciesClusterManager::makeOnePotential(Expert* e,vector<string>& regNames,string& cellType,bool& regStatus,DRMNPotential** potPtr, Matrix* X, Matrix* Y, int moduleID, int iter) 
 {
 	//SpeciesFeatureManager* sfMgr=speciesFeatSet[cellType];
 	EvidenceManager* evMgr=evMgrSet[cellType];
@@ -5595,6 +5596,26 @@ SpeciesClusterManager::makeOnePotential(Expert* e,vector<string>& regNames,strin
 	cout << "estimateCov:" << endl;
 	estimateCov(e, X, Y, gCovar);
 	cout << "gCovar:" << gCovar.size() << endl;
+
+	//{
+	//	char tempoutname[1024];
+	//	sprintf(tempoutname,"%s_%d_%d.txt",cellType.c_str(),iter,moduleID);
+	//	ofstream tempOF(tempoutname);
+	//	for (map<int,INTDBLMAP*>::iterator iitr=gCovar.begin();iitr!=gCovar.end();iitr++)
+	//	{
+	//		int curID = iitr->first;
+	//		string curName = varIDNameMap[curID];
+	//		tempOF << curName;
+	//		INTDBLMAP* curcov = iitr->second;
+	//		for (map<int,double>::iterator jitr=curcov->begin();jitr!=curcov->end();jitr++)
+	//		{
+	//			tempOF << "\t" << jitr->second;
+	//		}
+	//		tempOF << endl;
+	//	}
+	//	tempOF.close();
+	//}
+	
 
 	DRMNPotential* pot=new DRMNPotential;
 	DRMNPotential* parentPot=new DRMNPotential;
@@ -5706,7 +5727,7 @@ SpeciesClusterManager::clearAllW(vector<Matrix*>& allW)
 }
 
 int
-SpeciesClusterManager::estimateRegProgs_PerModule_LASSO(int moduleID)
+SpeciesClusterManager::estimateRegProgs_PerModule_LASSO(int moduleID,int iter)
 {
 	cout << "Updating regulatory program for " << moduleID << " ";
 	time_t result = time(0);
@@ -5727,9 +5748,17 @@ SpeciesClusterManager::estimateRegProgs_PerModule_LASSO(int moduleID)
 	vector<Task_T*>* allt = new vector<Task_T*>;
 	map<string,Matrix*> cell2exp;
 	map<string,Matrix*> cell2feat;
-	for(map<string,CLUSTERSET*>::iterator sIter=speciesExpertSet.begin();sIter!=speciesExpertSet.end();sIter++)
+
+	vector<string> speciesList;
+	mor->getSpeciesOrder(speciesList);
+	for(int sindex=0;sindex<speciesList.size();sindex++)
 	{
-		string s=sIter->first;
+		string s = speciesList[sindex];
+		map<string,CLUSTERSET*>::iterator sIter=speciesExpertSet.find(s);
+		//string s=sIter->first;
+		cerr << "in estimateRegProgs_PerModule_LASSO, index: " << sindex << ", species: " << s << endl;
+		//sindex++;
+
 		CLUSTERSET* expertSet=sIter->second;
 		Expert* expert=(*expertSet)[moduleID];
 		map<string,int>& geneSet=expert->getGeneSet();
@@ -5846,12 +5875,16 @@ SpeciesClusterManager::estimateRegProgs_PerModule_LASSO(int moduleID)
 		string  s = t->name;
 		Matrix* W = allW[i];
 		Matrix* X = cell2feat[s];
+		int gcnt = X->getColCnt();
 		Matrix* Y = cell2exp[s];
 
 		CLUSTERSET* expertSet=speciesExpertSet[s];
 		Expert* expert=(*expertSet)[moduleID];
 		//SpeciesFeatureManager* sfMgr=speciesFeatSet[s];
 		vector<string> regNames;
+		vector<int>    regIds;
+		int v0cnt = 0;
+		int skipCnt = 0;
 		for (map<string,int>::iterator ritr=allRegulatorIndex.begin(); ritr!=allRegulatorIndex.end();ritr++)
 		{
 			int ri=ritr->second;
@@ -5861,10 +5894,45 @@ SpeciesClusterManager::estimateRegProgs_PerModule_LASSO(int moduleID)
 			//if ( fabs(v)>0.001 )
 			if ( v != 0 )
 			{
-				regNames.push_back(rname);
-				//cout << ".";
+				v0cnt++;
+				//check repeat
+				int skip = 0;
+				int skipr = 0;
+				for (int j=0;j<regIds.size();j++)
+				{
+					int rj = regIds[j];
+					int eq = 1;
+					for (int k=0;k<gcnt;k++)
+					{
+						double vi = X->getValue(ri,k);
+						double vj = X->getValue(rj,k);
+						if (vi != vj)
+						{
+							eq = 0;
+							break;
+						}
+					}
+					if (eq == 1)
+					{
+						skip = 1;
+						skipr = j;
+						break;
+					}
+				}
+				if (skip != 1)
+				{
+					regNames.push_back(rname);
+					regIds.push_back(ri);
+					//cout << ".";
+				}
+				else
+				{
+					skipCnt++;
+					cout << "SKIP! in module " << moduleID << " Reg " << rname << " is the same as " << regNames[skipr] << endl;
+				}
 			}
 		}
+		cout << "I had " << v0cnt << ", skipped " << skipCnt << endl;
 		cout << "I have " << regNames.size() << " regulators. Let's make a POTENTIAL!" << endl;
 		if (regNames.size() == 0)
 		{
@@ -5872,7 +5940,7 @@ SpeciesClusterManager::estimateRegProgs_PerModule_LASSO(int moduleID)
 		}
 		bool regulatorStatus=false;
 		DRMNPotential* aPot=NULL;
-		double scoreImprovement_PerCelltype=makeOnePotential(expert,regNames,s,regulatorStatus,&aPot,X,Y);
+		double scoreImprovement_PerCelltype=makeOnePotential(expert,regNames,s,regulatorStatus,&aPot,X,Y,moduleID,iter);
 
 		if (aPot == NULL)
 		{

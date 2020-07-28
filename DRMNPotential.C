@@ -477,13 +477,13 @@ DRMNPotential::initMBCovMean()
 		}
 	}
 	double det=mbcov->detMatrix();
-	if(fabs(det)<1e-200)
-	{
-		cout <<"Determinant is " << det << " too small" <<endl;
-		delete mbcov;
-		delete mbmargvar;
-		return -1;
-	}
+	//if(fabs(det)<1e-200)
+	//{
+	//	cout <<"Determinant is " << det << " too small" <<endl;
+	//	delete mbcov;
+	//	delete mbmargvar;
+	//	return -1;
+	//}
 	Matrix* covInv=mbcov->invMatrix();
 	Matrix* prod1=mbmargvar->multiplyMatrix(covInv);
 	for(INTINTMAP_ITER aIter=localMatIDMap.begin();aIter!=localMatIDMap.end();aIter++)

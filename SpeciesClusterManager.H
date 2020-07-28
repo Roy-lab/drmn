@@ -140,7 +140,7 @@ class SpeciesClusterManager
 	double getDRMNScoreForModule(int);
 
 	int precomputeEmptyGraphPrior();
-	int estimateRegProgs();
+	int estimateRegProgs(int iter);
 	int estimateRegProgs_PerModule(int moduleID);
 	double assessScoreImprovement(Expert* e,string& regName,string& cellType,bool& regStatus,DRMNPotential** potPtr);
 	//double assessScoreImprovement(Expert* e,string& regName,string& cellType,bool& regStatus,DRMNPotential* potPtr);
@@ -257,8 +257,8 @@ class SpeciesClusterManager
 	int estimateCov_All(Expert* e, Matrix* X, Matrix* Y, map<int,INTDBLMAP*>& gCovar);
 	int addCov(Expert* e, Matrix* X, Matrix* Y, map<int,INTDBLMAP*>& gCovar, string regName);
 
-	int estimateRegProgs_PerModule_LASSO(int moduleID);
-	double makeOnePotential(Expert* e,vector<string>& regNames,string& cellType,bool& regStatus,DRMNPotential** potPtr, Matrix* X, Matrix* Y);
+	int estimateRegProgs_PerModule_LASSO(int moduleID,int iter);
+	double makeOnePotential(Expert* e,vector<string>& regNames,string& cellType,bool& regStatus,DRMNPotential** potPtr, Matrix* X, Matrix* Y, int moduleID, int iter);
 	int learnLEAST(vector<Task_T*>* allt,vector<Matrix*>& allW);
 	int countAllW(vector<Matrix*> allW);
 	int clearAllW(vector<Matrix*>& allW);
