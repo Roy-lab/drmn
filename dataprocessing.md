@@ -1,5 +1,7 @@
 # Preparing input data for DRMN
 
+In order to run DRMN, we need: 
+
 * A "lineage tree" file, showing the relationships between cell types.
 Example: example_input/lineage_tree.txt
 The format is: first column is child cell type, second column is parent cell type.
