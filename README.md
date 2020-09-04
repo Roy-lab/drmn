@@ -1,48 +1,18 @@
 # DRMN: Dynamic Regulatory Module Networks
 
+[![GPLv3 license](https://img.shields.io/badge/License-GPLv3-blue.svg)](http://perso.crans.org/besson/LICENSE.html)
+
+Dynamic Regulatory Module Networks (DRMN) is a computational framework to infer context-specific regulatory network for cell lineage or a time course. It can incorporate context-specific features (such as histone modification) and context-independent features (such as motif networks). In order to handle small number of expression samples (1 per time point/cell line) we first cluster genes into groups of co-expressed genes, and then infer regulatory program for each module, with additional constraint that time points and cell lines that are close to each other should have similar regulatory program and modules.
+
+![alt text](example_input/drmn_overview.png "Overview of DRMN. Given a cell lineage (or a time course), and context-specific and context-independent features for each cell line, DRMN infers modules of coexpressed genes in each cell line and infers a regulatory program for each module. DRMN allows for change in module assignment of genes across cell lines based on similarity of cell lines and changes in expression of genes.")
+
+
+For dataprocessing steps, see [data preparation](dataprocessing.md)
+
 The enclosed example script and data show you how to run DRMN and format your input files.
 Script: run_example.sh
 Input data: example_input/
 
-You will need:
-
-* A "lineage tree" file, showing the relationships between cell types.
-Example: example_input/lineage_tree.txt
-The format is: first column is child cell type, second column is parent cell type.
-For a linear tree cell -> cell2 -> cell3, the tree is:
-cell2   cell
-cell3   cell2
-
-To run DRMN on only one cell type, make your cell type the root, with no children.
-NULL    cell
-Example: example_input/mef_tree.txt
-
-* A "celltype_order" file, with each cell type listed on its own line. 
-This order needs to match the order of genes in the ortho_map file.
-Example: example_input/celltype_order.txt
-
-* An OGIDs file, which matches genes between cell types. 
-Although DRMN doesn't have different species, it uses different versions of the gene names for each cell type. An easy way to set this up is to use $name for the gene in the first cell type, and ${name}_${cell} for the other cell types.
-Example: example_input/ogids_expr_100.txt
-
-* A config file that lists out three input filenames for each cell type.
-Example: example_input/histonly_k3_config.txt
-The format is (tab delimited):
-cell    initial_clusterassign.txt     expression_file.txt    feature_data.txt
-
-Each cell type-specific file needs to use the cell type-specific names for genes, matching the names in the OGIDs file:
-
-** Cluster assignment format (tab-delim, 2 cols, no header):
-g_cell    cID
-You should generate the initial clusters independently per cell type using k-means, then re-order them from lowest to highest. This is necessary so that the interpretation of each state matches between cell types.
-You can use the enclosed script doInitClust.m to do it in matlab.
-
-** Expression format (tab-delim, 2 cols, has one header line, where the header for col2 is the cell type name):
-Gene          cell
-g_cell    log_expr
-
-** Feature data format (tab-delim, 3 cols, no header)
-feature     g_cell    value
 
 # Usage and other parameters
 
