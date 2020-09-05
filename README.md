@@ -37,12 +37,9 @@ visualize: not implemented
 9. srcnode: Cell type to use as the reference cell type. The gene names for this cell type will be used in some output files.
 10. p_diagonal_nonleaf : The prior for genes maintaining their state assignment between two adjacent cell types. We use 0.8 by default. IT doesn't seem to affect DRMN very much so far.
 
-Optional arguments (it will figure out based on the value type which one(s) you are using):
-11. float(const_cov) : If you are getting module switches (as we did with Escarole on Randy and Morten's datasets), you may need to fix the covariances to a constant value. But, we didn't need to do this for Chronis DRMN. Try 0.2 to start if you need to.
+11. selfInit (optional): If you include this exact string, DRMN will initialize the module parameters based on the data for each cell type separately. If you don't use this, then it will initialize all module params from the srcnode cell type. If the distributions of your data differ between cell types (say you used log zero mean expression), then you will definitely need to use this. If the distributions match, then it probably doesn't matter. I use it anyway.
 
-12. selfInit: If you include this exact string, DRMN will initialize the module parameters based on the data for each cell type separately. If you don't use this, then it will initialize all module params from the srcnode cell type. If the distributions of your data differ between cell types (say you used log zero mean expression), then you will definitely need to use this. If the distributions match, then it probably doesn't matter. I use it anyway.
-
-13. leasttype: The multitask regression algorithm, LEASTFUSED for fused lasso, LEASTDIRTY for dirty lasso, and LEASTL21 l2/1. 
+12. leasttype(optional): The multitask regression algorithm, LEASTFUSED for fused lasso, LEASTDIRTY for dirty lasso, and LEASTL21 l2/1. If it is GREEDY or not specified, it ran the original algorithm.
    * fused lasso has 3 hyper parameters (sparsity, fused penalty, and group penalty), the others have 2 hyper parameters.
 
 for Least_Dirty:
