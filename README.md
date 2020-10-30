@@ -8,6 +8,7 @@ Dynamic Regulatory Module Networks (DRMN) is a computational framework to infer 
 
 
 For dataprocessing steps, see [data preparation](dataprocessing.md)
+For explanation of other input files, see [other input files for DRMN](otherinputs.md)
 
 The enclosed example script and data show you how to run DRMN and format your input files.
 Script: run_example.sh
