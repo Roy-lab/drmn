@@ -17,7 +17,7 @@ Input data: example_input/
 # Usage and other parameters
 
 ```
-Usage: ./learnDRMN celltype_order ogids_file null k lineage_tree config rand[none|yes|<int>] outputDir mode[learn|learnCV|learnCV:<int>:<int>:<int>|generate|visualize] srcnode inittype[uniform|branchlength] p_diagonal_nonleaf [selfInit leasttype[LEASTFUSED|LEASTDIRTY|LEASTL21] p1 p2 p3]
+Usage: ./learnDRMN celltype_order ogids_file null k lineage_tree config rand[none|yes|<int>] outputDir mode[learn|learnCV|learnCV:<int>:<int>:<int>|generate|visualize] srcnode inittype[uniform|branchlength] p_diagonal_nonleaf [selfInit leasttype[LEASTFUSED|GREEDY] p1 p2 p3]
 ```
 
 0. celltype_order as described above
@@ -39,18 +39,14 @@ visualize: not implemented
 
 11. selfInit (optional): If you include this exact string, DRMN will initialize the module parameters based on the data for each cell type separately. If you don't use this, then it will initialize all module params from the srcnode cell type. If the distributions of your data differ between cell types (say you used log zero mean expression), then you will definitely need to use this. If the distributions match, then it probably doesn't matter. I use it anyway.
 
-12. leasttype(optional): The multitask regression algorithm, LEASTFUSED for fused lasso, LEASTDIRTY for dirty lasso, and LEASTL21 l2/1. If it is GREEDY or not specified, it ran the original algorithm.
-   * fused lasso has 3 hyper parameters (sparsity, fused penalty, and group penalty), the others have 2 hyper parameters.
+12. leasttype(optional): The multitask regression algorithm, LEASTFUSED for fused lasso, and if it is GREEDY or not specified, it ran the greedy hill climbing algorithm.
+   * fused lasso has 3 hyper parameters (sparsity, fused penalty, and group penalty).
 
-for Least_Dirty:
+for LEASTFUSED:
 ```
-./learnDRMN order.txt ogids.txt null 3 tree.txt config.txt none out/ learnCV:0:12345 esc uniform 0.8 selfInit LEASTDIRTY 25 50
+./learnDRMN order.txt ogids.txt null 3 tree.txt config.txt none out/ learnCV:0:12345 esc uniform 0.8 selfInit LEASTFUSED 25 50 50
 ```
-for Least_L21:
-```
-./learnDRMN order.txt ogids.txt null 3 tree.txt config.txt none out/ learnCV:0:12345 esc uniform 0.8 selfInit LEASTL21 25 50
-```
-and for original method:
+and for GREEDY method:
 ```
 ./learnDRMN order.txt ogids.txt null 3 tree.txt config.txt none out/ learnCV:0:12345 esc uniform 0.8 selfInit
 ```
