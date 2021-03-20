@@ -22,6 +22,7 @@ NULL    cell
 Example: example_input/ogids.txt
 
 * A config file that lists out three input filenames for each cell type. Example: atac_qmotif_chromatin_9marks_k7/config.txt
+The first line should be the location of the files specified in the rest of the config file.
 The format is (tab delimited), each cell type-specific file needs to use the cell type-specific names for genes, matching the names in the OGIDs file:
 ```
 cell    initial_clusterassign.txt     expression_file.txt    feature_data.txt
