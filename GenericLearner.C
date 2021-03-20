@@ -6,6 +6,7 @@
 #include "GenericLearner.H"
 #include <algorithm>
 #include <fstream>
+#include <string.h>
 
 using namespace std;
 
@@ -308,5 +309,12 @@ GenericLearner::showMe(const char* pref, vector<Matrix*> allA)
 		}
 		cout << endl;
 	}
+	return 0;
+}
+
+int
+GenericLearner::setOutputDir(const char* aDir)
+{
+	strcpy(outputDir,aDir);
 	return 0;
 }

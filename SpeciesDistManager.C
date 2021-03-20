@@ -25,6 +25,7 @@ Arboretum: An algorithm to cluster functional genomesomics data from multiple sp
 
 SpeciesDistManager::SpeciesDistManager()
 {
+	treeStructure = NULL;
 	root=NULL;
 	maxClusterCnt=0;
 }
@@ -43,6 +44,7 @@ SpeciesDistManager::setMaxClusters(int k)
 int 
 SpeciesDistManager::readSpeciesTree(const char* aFName)
 {
+	treeStructure = new map<string,vector<string>*>;
 	ifstream inFile(aFName);
 	char buffer[1024];
 	while(inFile.good())
@@ -78,6 +80,19 @@ SpeciesDistManager::readSpeciesTree(const char* aFName)
 			tok=strtok(NULL,"\t");
 			tokCnt++;
 		}
+		//Ali, tree structure
+		vector<string>* children;
+		if (treeStructure->find(parentSpeciesName) == treeStructure->end())
+		{
+			children = new vector<string>;
+			(*treeStructure)[parentSpeciesName] = children;
+		}
+		else
+		{
+			children = (*treeStructure)[parentSpeciesName];
+		}
+		children->push_back(childSpeciesName);
+		//eo Ali tree structure
 		SpeciesDistManager::Species* childSpecies=NULL;
 		SpeciesDistManager::Species* parentSpecies=NULL;
 		if(strcmp(childSpeciesName.c_str(),"NULL")!=0) 
@@ -802,4 +817,8 @@ SpeciesDistManager::maxSubTree(int parentCluster, Species* child, map<string,int
 	return score;
 }
 
-
+map<string,vector<string>*>* 
+SpeciesDistManager::getTreeStructure()
+{
+	return treeStructure;
+}

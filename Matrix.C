@@ -1,5 +1,7 @@
 #include "Matrix.H"
 #include <math.h>
+#include <gsl/gsl_math.h>
+#include <gsl/gsl_eigen.h>
 #include <map>
 #include <exception>
 #include <stdexcept>
@@ -1190,4 +1192,40 @@ Matrix::countRowEq(int r, double v)
 		}
 	}
 	return cnt;
+}
+
+
+Matrix* 
+Matrix::getEigenValues()
+{
+	Matrix* eigs=new Matrix(row,1);
+	gsl_vector *eval = gsl_vector_alloc (row);
+	gsl_matrix *evec = gsl_matrix_alloc (row, row);
+	gsl_eigen_symmv_workspace * w = gsl_eigen_symmv_alloc (row);
+
+	gsl_matrix* tempmat= gsl_matrix_alloc(row, col);
+	gsl_matrix_memcpy(tempmat,matrix);
+	//for(int i=0;i<row;i++)
+	//{
+	//	for(int j=0;j<col;j++)
+	//	{
+	//		double val=gsl_matrix_get(matrix, i, j);
+	//		gsl_matrix_set(tempmat, i, j, val);
+	//	}
+	//}
+
+	gsl_eigen_symmv (tempmat,eval, evec, w);
+
+	gsl_eigen_symmv_free (w);
+	gsl_eigen_symmv_sort (eval, evec, GSL_EIGEN_SORT_ABS_ASC);	
+	for (int i=0;i<row;i++)
+	{
+		double eval_i=gsl_vector_get(eval,i);
+		eigs->setValue(eval_i,i,0);
+	}
+	gsl_vector_free(eval);
+	gsl_matrix_free(evec);
+	gsl_matrix_free(tempmat);
+
+	return eigs;
 }

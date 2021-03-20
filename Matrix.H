@@ -105,6 +105,7 @@ class Matrix
 		int getZeroRows(gsl_vector* rvec);
 		int countColEq(int c, double v);
 		int countRowEq(int r, double v);
+		Matrix* getEigenValues();
 	private:
 		static void throwExp(const char * reason, const char * file, int line, int gsl_errno);
 		/* // not used 

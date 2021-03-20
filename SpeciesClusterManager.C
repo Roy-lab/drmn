@@ -376,8 +376,221 @@ SpeciesClusterManager::readSpeciesData(const char* clusterFName)
 
 /**
 * Version that allows us to only read data for a subset of species
+* SR is going to change this to read the directory where these files live
 */
 int 
+SpeciesClusterManager::readSpeciesData(const char* clusterFName, vector<string>& specNames)
+{
+	clock_t t=clock(); // time this step
+
+	ifstream inFile(clusterFName);
+	char buffer[1024];
+	r=gsl_rng_alloc(gsl_rng_default); // RNG initialized here
+	if(rseed==-1)
+	{
+		rseed=getpid();
+	}
+	gsl_rng_set(r,rseed); // OK, random seed is finally set here.
+	cout << rseed << endl;
+
+	bool failed=false; // some data problem
+
+	int lineCnt=0;
+	string dirPath;
+	while(inFile.good())
+	{
+		inFile.getline(buffer,1023);
+		if(strlen(buffer)<=0)
+		{
+			continue;
+		}
+		if(lineCnt==0)
+		{
+			dirPath.append(buffer);
+			dirPath.append("/");
+			lineCnt++;
+		}
+		else
+		{
+			char* tok=strtok(buffer,"\t");
+			int tokCnt=0;
+			string speciesName;
+			string clusterFName;
+			string expressionFName;
+			string netFeatFName=""; // cisregulatory features
+			while(tok!=NULL)
+			{
+				if(tokCnt==0)
+				{
+					speciesName.append(tok);
+				}
+				else if(tokCnt==1)
+				{
+					clusterFName.append(dirPath);
+					clusterFName.append(tok);
+				}	
+				else if(tokCnt==2)
+				{
+					expressionFName.append(dirPath);
+					expressionFName.append(tok);
+				}
+				else if (tokCnt==3)
+				{
+					netFeatFName.append(dirPath);
+					netFeatFName.append(tok);	
+				}
+				tok=strtok(NULL,"\t");
+				tokCnt++;
+			}
+			// skip if we specified a list of species and that list does not contain this species
+			if (specNames.size() !=0 && (find(specNames.begin(), specNames.end(), speciesName) == specNames.end()) )
+			{
+				cout << "Skipping config file line for species " << speciesName << endl; 
+				continue; 
+			}
+
+			//populate ONLY if this does not exist
+			if(speciesExprSet.find(speciesName)==speciesExprSet.end())
+			{
+				GeneExpManager* exprManager=new GeneExpManager;
+				//exprManager->readExpression(expressionFName.c_str());
+				exprManager->readExpression_Withheader(expressionFName.c_str());
+				speciesExprSet[speciesName]=exprManager;
+				int vID=0;
+				//harcoding this now
+				varNameIDMap["Expression"]=vID;
+				varIDNameMap[vID]="Expression";
+				vID++;
+				// read cisreg features
+				SpeciesFeatureManager* featureManager=new SpeciesFeatureManager;
+				cout << netFeatFName << endl;
+				if (netFeatFName.compare("") != 0)
+				{
+					//featureManager->readFeatures(netFeatFName.c_str());
+					featureManager->readFeatures_Efficient(netFeatFName.c_str());
+				}
+				else
+				{
+					cout << "Missing cis-regulatory feature data for " << speciesName << endl;
+					failed=true;
+				}
+			
+				//speciesFeatSet[speciesName]=featureManager;
+				//SR: We will maintain the names of all regulators in one place
+				map<string,int>& regSet=featureManager->getFeatureNames();
+				for(map<string,int>::iterator rIter=regSet.begin();rIter!=regSet.end();rIter++)
+				{
+					allRegulatorSet[rIter->first]=0;
+					if(varNameIDMap.find(rIter->first)==varNameIDMap.end())
+					{
+						varNameIDMap[rIter->first]=vID;
+						varIDNameMap[vID]=rIter->first;
+						vID++;
+					}
+				}	
+				//Let's combine expression and features into evidenceManager like object.
+				EvidenceManager* evManager=new EvidenceManager;
+				evMgrSet[speciesName]=evManager;
+				//Now for every gene, get it's expression and its species features. We will create an evidenceSet for each gene and an evidence 
+				//expression or the regulatory features.
+				map<string,vector<double>*>& geneSet=exprManager->getGeneSet();
+				for(map<string,vector<double>*>::iterator gIter=geneSet.begin();gIter!=geneSet.end();gIter++)
+				{
+					vector<double>* exp=gIter->second;
+					EMAP* evidMap=new EMAP;
+					//If there are multiple measures for this gene, we are just going to use the mean
+					double collapsedVal=0;
+					for(int i=0;i<exp->size();i++)
+					{
+						collapsedVal=collapsedVal+(*exp)[i];
+					}
+					collapsedVal=collapsedVal/exp->size();
+					//Now make an Evidence object
+					//Evidence* evid=new Evidence;
+					//int varID=varNameIDMap["Expression"];
+					////evid->assocVariable(varID);
+					//evid->setEvidVal(collapsedVal);
+					//(*evidMap)[varID]=evid;
+					int varID=varNameIDMap["Expression"];
+					(*evidMap)[varID]=collapsedVal;
+					//Now for this gene get all its regulatory features	
+					//map<string,double>* tfs=featureManager->getRegulatorsForTarget((string&)gIter->first);
+					double* tfs=featureManager->getRegulatorsForTarget_Efficient((string&)gIter->first);
+					//for(map<string,map<string,double>*>::iterator rIter=predictiveFeatureSet.begin();rIter!=predictiveFeatureSet.end();rIter++)
+					if(tfs!=NULL)
+					{
+						//for(map<string,double>::iterator rIter=tfs->begin();rIter!=tfs->end();rIter++)
+						for(map<string,int>::iterator rIter=regSet.begin();rIter!=regSet.end();rIter++)
+						{
+							//map<string,double>* tgts=rIter->second;
+							//double regFeatVal=rIter->second;
+							double regFeatVal=tfs[rIter->second];
+							/*if(tgts->find(gIter->first)==tgts->end())
+							{	
+								regFeatVal=featureManager->getDefaultValue();
+							}
+							else
+							{
+								regFeatVal=(*tgts)[gIter->first];
+							}*/
+							//Evidence* evid=new Evidence;
+							//int varID=varNameIDMap[rIter->first];
+							////evid->assocVariable(varID);
+							//evid->setEvidVal(regFeatVal);
+							//(*evidMap)[varID]=evid;
+							int varID=varNameIDMap[rIter->first];
+							(*evidMap)[varID]=regFeatVal;
+						}
+						//Now we just add the evidMap to evMgr;
+						//evManager->addEvidenceWithName(evidMap,(string&)gIter->first);
+					}
+					//else
+					//{
+					//	//We didn't have features, we skip this one
+					//	delete evidMap;
+					//}
+					evManager->addEvidenceWithName(evidMap,(string&)gIter->first);
+				}
+				delete featureManager;
+			}
+			//Only this needs to be read each time
+			int readOK = readClusters(speciesName,clusterFName.c_str());
+			if (readOK != 0) 
+			{
+				cerr << "ClusterID exceeds max allowed." << endl;
+				failed=true;
+				break;
+			}
+		}
+	}
+	inFile.close();
+
+	int ri=0;
+	for(map<string,int>::iterator rIter=allRegulatorSet.begin();rIter!=allRegulatorSet.end();rIter++)
+	{
+		allRegulatorIndex[rIter->first] = ri;
+		ri++;
+	}
+
+	if (failed)
+	{
+		return 1;
+	}
+	//Do some other inits to learn the params
+	ludecomp=gsl_matrix_alloc(MAXFACTORSIZE_ALLOC,MAXFACTORSIZE_ALLOC);
+	perm=gsl_permutation_alloc(MAXFACTORSIZE_ALLOC);
+
+	//cout <<"Read expression, clusterings, cis-regulatory feature data AND CREATING EVMGR for " << speciesClusterSet_Genewise.size() << " species" << endl;
+	t=clock()-t;
+	cout << "Time to read all input data for " << speciesClusterSet_Genewise.size() << " species (m) = " << ((long double)t/CLOCKS_PER_SEC)/60.0 << endl;
+	return 0;
+}
+
+
+/**
+* Version that allows us to only read data for a subset of species
+*/
+/*int 
 SpeciesClusterManager::readSpeciesData(const char* clusterFName, vector<string>& specNames)
 {
 	clock_t t=clock(); // time this step
@@ -511,14 +724,6 @@ SpeciesClusterManager::readSpeciesData(const char* clusterFName, vector<string>&
 						//map<string,double>* tgts=rIter->second;
 						//double regFeatVal=rIter->second;
 						double regFeatVal=tfs[rIter->second];
-						/*if(tgts->find(gIter->first)==tgts->end())
-						{	
-							regFeatVal=featureManager->getDefaultValue();
-						}
-						else
-						{
-							regFeatVal=(*tgts)[gIter->first];
-						}*/
 						//Evidence* evid=new Evidence;
 						//int varID=varNameIDMap[rIter->first];
 						////evid->assocVariable(varID);
@@ -569,7 +774,7 @@ SpeciesClusterManager::readSpeciesData(const char* clusterFName, vector<string>&
 	t=clock()-t;
 	cout << "Time to read all input data for " << speciesClusterSet_Genewise.size() << " species (m) = " << ((long double)t/CLOCKS_PER_SEC)/60.0 << endl;
 	return 0;
-}
+}*/
 
 int
 SpeciesClusterManager::initExperts()
@@ -694,6 +899,7 @@ SpeciesClusterManager::estimateDRMN(const char* outputDir)
 	double currScore=0;
 	bool convergence=false;
 	int iter=0;
+	//SR made this change
 	//This will store the empty graph per cell type where for each module there will be no regulators.
 	precomputeEmptyGraphPrior();
 	//while((!convergence)&&(iter<100))
@@ -702,6 +908,19 @@ SpeciesClusterManager::estimateDRMN(const char* outputDir)
 	{
 		// At this stage we have a set of modules, so we are going to attach regulators to each module
 		// This is like doing the M step in DRMN
+		// Make output directory -- and kill the program immediately if we can't!
+		char intermediateOutDir[1024];
+		sprintf(intermediateOutDir,"%s/iter%d",outputDir,iter);
+		char command[1024];
+
+		sprintf(command,"mkdir -p %s",intermediateOutDir);
+		const int mkdir_err = system(command);
+		if (mkdir_err != 0)
+		{
+			cerr << "Cannot create output directory " << intermediateOutDir << " !!" << endl;
+			//success=1; 
+		}
+		strcpy(drmnOutputDir,intermediateOutDir);
 		estimateRegProgs(iter);
 		// Hard module assignment and recompute transition probs.
 		expectationStep_DRMN();
@@ -720,18 +939,6 @@ SpeciesClusterManager::estimateDRMN(const char* outputDir)
 		//Do the hard assignment
 		assignGenesToExperts_FromMap();
 
-		// Make output directory -- and kill the program immediately if we can't!
-		char intermediateOutDir[1024];
-		sprintf(intermediateOutDir,"%s/iter%d",outputDir,iter);
-		char command[1024];
-
-		sprintf(command,"mkdir -p %s",intermediateOutDir);
-		const int mkdir_err = system(command);
-		if (mkdir_err != 0)
-		{
-			cerr << "Cannot create output directory " << intermediateOutDir << " !!" << endl;
-			//success=1; 
-		}
 		success=abs(success)+abs(showDRMNResults(intermediateOutDir));
 		iter++;
 	}
@@ -3197,7 +3404,8 @@ int
 SpeciesClusterManager::showClusters_Ancestral(const char* outputDir)
 {
 	map<string,ofstream*> filePtrs;
-	char geneName[32];
+	//char geneName[32];
+	char geneName[1024];
 	map<int,MappedOrthogroup*>& allOgs=mor->getMappedOrthogroups();
 	for(map<int,map<string,int>*>::iterator ogIter=mappedClusterAssignment.begin();ogIter!=mappedClusterAssignment.end();ogIter++)
 	{
@@ -5473,12 +5681,46 @@ int
 SpeciesClusterManager::learnLEAST(vector<Task_T*>* allt,vector<Matrix*>& allW)
 {
 	map<int,vector<int>> tree;
-	for (int i=0;i<allt->size()-1;i++)
+	//fake linear tree:
+	//for (int i=0;i<allt->size()-1;i++)
+	//{
+	//	vector<int> e;
+	//	e.push_back(i+1);
+	//	tree[i] = e;
+	//}
+	map<string,int> species2index;
+	for (int i=0;i<allt->size();i++)
 	{
-		vector<int> e;
-		e.push_back(i+1);
-		tree[i] = e;
+		Task_T * t = allt->at(i);
+		species2index[t->name] = i;
 	}
+	SpeciesDistManager* sdMgr=gammaMgr->getSpeciesDistManager();
+	map<string,vector<string>*>* treeStructure = sdMgr->getTreeStructure();
+	for (map<string,vector<string>*>::iterator sIter=treeStructure->begin();sIter!=treeStructure->end();sIter++)
+	{
+		string par = sIter->first;
+		if (species2index.find(par) == species2index.end())
+		{
+			cerr << "Shouldnt happen! name wasnt in species: " << par << endl;
+			exit(0);
+		}
+		int parindex = species2index[par];
+		vector<int> childrenindices;
+		vector<string>* children = sIter->second;
+		for (int i=0;i<children->size();i++)
+		{
+			string child = children->at(i);
+			if (species2index.find(child) == species2index.end())
+			{
+				cerr << "Shouldnt happen! name wasnt in species: " << child << endl;
+				exit(0);
+			}
+			int childindex = species2index[child];
+			childrenindices.push_back(childindex);
+		}
+		tree[parindex] = childrenindices;
+	}
+
 	GenericLearner* ll;
 	if (learnMode == LEASTDIRTY)
 	{
@@ -5504,6 +5746,7 @@ SpeciesClusterManager::learnLEAST(vector<Task_T*>* allt,vector<Matrix*>& allW)
 	{
 		cout << "LEASTFUSED!" << endl;
 		ll = new LeastCFGLasso(rho1,rho2,rho3);
+		ll->setOutputDir(drmnOutputDirIter);
 		ll->doAGM(allt,allW,tree);
 		delete ll;
 	}
@@ -5744,6 +5987,19 @@ SpeciesClusterManager::estimateRegProgs_PerModule_LASSO(int moduleID,int iter)
 	{
 		cout << "Doing LeastFUSED!" << endl;
 	}
+	//make a dir
+	char intermediateOutDir[1024];
+	sprintf(intermediateOutDir,"%s/module%d",drmnOutputDir,moduleID);
+	char command[1024];
+
+	sprintf(command,"mkdir -p %s",intermediateOutDir);
+	const int mkdir_err = system(command);
+	if (mkdir_err != 0)
+	{
+		cerr << "Cannot create output directory " << intermediateOutDir << " !!" << endl;
+		//success=1; 
+	}
+	strcpy(drmnOutputDirIter,intermediateOutDir);
 	
 	vector<Task_T*>* allt = new vector<Task_T*>;
 	map<string,Matrix*> cell2exp;

@@ -92,6 +92,8 @@ class SpeciesDistManager
 	//The output parameter is the normalization constant for each node.
 	//int estimateNormalizationConstants(map<string,map<int,double>*>& dataPtProb, map<string,double>& normConstants);
 	//int estimateNormalizationConstant_Node(map<string,map<int,double>*>& dataPtProb, map<string,double>& normConstants,Species*,int ancestralClustID);
+
+	map<string,vector<string>*>* getTreeStructure();
 	
 	private:
 	
@@ -105,5 +107,6 @@ class SpeciesDistManager
 	Species* root;
 	int maxClusterCnt;
 	map<string,int> levelFromRoot;
+	map<string,vector<string>*>* treeStructure;
 };
 #endif

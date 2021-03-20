@@ -267,6 +267,9 @@ class SpeciesClusterManager
 	double rho1;
 	double rho2;
 	double rho3;
+
+	char drmnOutputDir[1024];
+	char drmnOutputDirIter[1024];
 };
 
 #endif

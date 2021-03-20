@@ -20,6 +20,7 @@ class GenericLearner
 		virtual int doAGM(vector<Task_T*>*,vector<Matrix*>&);
 		virtual int doAGM(vector<Task_T*>*,vector<Matrix*>&,vector<Matrix*>&,vector<Matrix*>&);
 		virtual int doAGM(vector<Task_T*>*,vector<Matrix*>&,map<int,vector<int>>&);
+		int setOutputDir(const char* outputDir);
 	protected:
 		int maxItr;
 		double beta;
@@ -37,6 +38,7 @@ class GenericLearner
 		int writeRegs(const char*,const char*,vector<Task_T*>*,vector<Matrix*>,map<string,int>);
 
 		int showMe(const char*,vector<Matrix*>);
+		char outputDir[1024];
 };
 
 #endif //_GENERICLEARNER
