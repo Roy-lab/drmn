@@ -1,10 +1,10 @@
 # Preparing input data for DRMN
 
-The regulatory features could be context-specific or context independent. For context-independent features, we use motif networks, by finding instances of motifs in promoter regions of genes.
+The regulatory features could be context-specific (e.g., chromatin marks, accessibility) or context independent (e.g., sequence-specific motifs). For context-independent features, we use instances of motifs in promoter regions of genes.
 
 ![alt text](example_input/motif_small.png "Motif instances in gene promoter.")
 
-For context-specific features, we can aggregate regulatory signals (different histone modification, or chromatin accessibility).
+For context-specific features, we aggregate regulatory signals (different histone modification, or chromatin accessibility) in promoter regions of genes.
 
 ![alt text](example_input/signal_small.png "Aggregated signals in gene promoter.")
 
