@@ -15,7 +15,7 @@ Furthermore, if accessibility signals (e.g. DNase-seq/ATAC-seq) are available, w
 We used our in-house softwares to aggregate signal in promoter regions or motif instances. 
 
 ### Generating Histone and Accessibility features
-We use the program (aggregateSignal)[https://github.com/Roy-lab/aggregateSignalRegion_nonLog] to generate the Histone and Accessibility features. This tool will aggregate the signal (ATAC-seq, DNase-seq, or histone modification) in promoter region of genes. Suppose we have bam files for a particular histone mark or accessibility. To generate this feature the steps are: 
+We use the program [aggregateSignal](https://github.com/Roy-lab/aggregateSignalRegion_nonLog) to generate the Histone and Accessibility features. This tool will aggregate the signal (ATAC-seq, DNase-seq, or histone modification) in promoter region of genes. Suppose we have bam files for a particular histone mark or accessibility. To generate this feature the steps are: 
 
 1. Use bedtools to convert bam files to count files:
 ```
@@ -42,7 +42,7 @@ Casc4	4.59291
 
 ### Generating Q-Motif feature (accessibility signal of motifs)
 
-We use the program (aggregateSignalMotifNet)[https://github.com/Roy-lab/aggregateSignalMotifNet] to aggregate signal (e.g., from ATAC-seq or DNA-seq) in motif instances mapped to promoter region of genes. To generate these features the steps are:
+We use the program [aggregateSignalMotifNet](https://github.com/Roy-lab/aggregateSignalMotifNet) to aggregate signal (e.g., from ATAC-seq or DNA-seq) in motif instances mapped to promoter region of genes. To generate these features the steps are:
 
 1. Use bedtools to convert bam files to count files:
 ```
