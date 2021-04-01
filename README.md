@@ -38,11 +38,11 @@ visualize: not implemented
 12. leasttype(optional): The multitask regression algorithm, LEASTFUSED for fused lasso, and if it is GREEDY or not specified, it ran the greedy hill climbing algorithm.
    * fused lasso has 3 hyper parameters (sparsity, fused penalty, and group penalty).
 
-for LEASTFUSED:
+for DRMN-FUSED:
 ```
 ./learnDRMN order.txt ogids.txt null 3 tree.txt config.txt none out/ learnCV:0:12345 esc uniform 0.8 selfInit LEASTFUSED 25 50 50
 ```
-and for GREEDY method:
+for DRMN-ST:
 ```
 ./learnDRMN order.txt ogids.txt null 3 tree.txt config.txt none out/ learnCV:0:12345 esc uniform 0.8 selfInit
 ```
