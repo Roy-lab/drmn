@@ -7,7 +7,7 @@ Dynamic Regulatory Module Networks (DRMN) is a computational framework to infer 
 ![alt text](example_input/drmn_overview.png "Overview of DRMN. Given a cell lineage (or a time course), and context-specific and context-independent features for each cell line, DRMN infers modules of coexpressed genes in each cell line and infers a regulatory program for each module. DRMN allows for change in module assignment of genes across cell lines based on similarity of cell lines and changes in expression of genes.")
 
 
-For data pre-processing steps needed for feature generation, see [feature generation](dataprocessing.md). For explanation of different input files, see [other input files for DRMN](otherinputs.md). The enclosed example script [run_example.sh](run_example.sh) shows how to run DRMN on an example input dataset[example_input].
+For data pre-processing steps needed for feature generation, see [feature generation](dataprocessing.md). For explanation of different input files, see [other input files for DRMN](otherinputs.md). The enclosed example script [run_example.sh](run_example.sh) shows how to run DRMN on an example [input dataset](example_input).
 
 
 # Usage and other parameters
