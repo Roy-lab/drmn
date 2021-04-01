@@ -40,7 +40,7 @@ g_cell    log_expr
 ```
 
 7. **feature file**. 
-The feature file is a tab-delmited file. The first line has two entries: first is the number of features and the second is the number of genes. The remaining lines are three column, tab-delimited lines. Each line has entries as follows [See example in tar file](example_input/atac_qmotif_chromatin_9marks_k7.tar.gz):
+The feature file is a tab-delmited file. See [feature generation](dataprocessing.md) to see how these features are generated. The first line has two entries: first is the number of features and the second is the number of genes. The remaining lines are three column, tab-delimited lines. Each line has entries as follows [See example in tar file](example_input/atac_qmotif_chromatin_9marks_k7.tar.gz):
 
 ```
 feature1 g_cell 1.2
