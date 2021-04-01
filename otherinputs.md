@@ -1,11 +1,11 @@
-# Other input files for DRMN
+# DRMN input files
 
 In order to run DRMN, we need the following input files: 
 
 1. A "lineage tree" file, showing the relationships between cell types.
 Example: example_input/tree.txt
 The format is: first column is child cell type, second column is parent cell type.
-For a linear tree cell -> cell2 -> cell3, the tree is:
+For a linear tree cell -> cell2 -> cell3, the tree is. [See example tree] (../blob/master/example_input/tree.txt):
 ```
 cell2   cell
 cell3   cell2
@@ -18,12 +18,12 @@ NULL    cell
 
 2. A "celltype_order" file, with each cell type listed on its own line. This order needs to match the order of genes in the ortho_map file. [See example](../blob/master/example_input/order.txt)
 
-3. An OGIDs file, which matches genes between cell types. Although DRMN doesn't have different species, it uses different versions of the gene names for each cell type. An easy way to set this up is to use $name for the gene in the first cell type, and ${name}\_${cell} for the other cell types.
-Example: example_input/ogids.txt
+3. An OGIDs file, which matches genes between cell types. DRMN uses different versions of the gene names for each cell type. An easy way to set this up is to use $name for the gene in the first cell type, and ${name}\_${cell} for the other cell types.
+[See example OGIDs file] (../blob/master/example_input/ogids.txt)
 
-4. A config file that lists out three input filenames for each cell type. Example: atac_qmotif_chromatin_9marks_k7/config.txt
+4. A config file that lists out three input filenames for each cell type. [See example](../blob/master/example_input/atac_qmotif_chromatin_9marks_k7/config.txt)
 The first line should be the location of the files specified in the rest of the config file.
-The format is (tab delimited), each cell type-specific file needs to use the cell type-specific names for genes, matching the names in the OGIDs file:
+All subsequent lines have four columns, celltype name, initial clusterassignment file, the expression file and the feature file. The format is (tab delimited), each cell type-specific file needs to use the cell type-specific names for genes, matching the names in the OGIDs file:
 ```
 cell    initial_clusterassign.txt     expression_file.txt    feature_data.txt
 ```
