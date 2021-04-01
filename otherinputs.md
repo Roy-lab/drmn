@@ -11,7 +11,7 @@ cell2   cell
 cell3   cell2
 ```
 
-  ** _Note_ ** To run DRMN on only one cell type, make your cell type the root, with no children.
+**_Note_** To run DRMN on only one cell type, make your cell type the root, with no children.
 ```
 NULL    cell
 ```
