@@ -111,7 +111,9 @@ quantilenorm(<data>)
 
 ### Formatting
 
-Additionally, we add cell line/time point specific suffixes to gene names in order (so gene names will be specific to a cell line while regulators will be the same for all cell lines). 
+Finally, prepare the final per-condition feature data files for input to the DRMN algorithm. 
+
+Here we add cell line/time point specific suffixes to gene names in order (so gene names will be specific to a cell line while regulators will be the same for all cell lines). 
 
 In the feature file, the first line is number of regulators and number of genes in the file (tab-delim).
 The rest of the file will be in 3 columns format (tab-delim):
