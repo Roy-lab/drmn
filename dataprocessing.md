@@ -48,13 +48,22 @@ We use the program [aggregateSignalMotifNet](https://github.com/Roy-lab/aggregat
 ```
 bedtools genomecov -ibam input.bam -bg -pc > output.counts
 ```
-2. Map motif instances to promoters by using either bedtools or our in house script, (PeakMapping)[https://github.com/Roy-lab/PeakMapping] to produce a file with motif instances to promoters. Bedtools can be used by intersecting genome-wide instances with the promoter coordinate file. Suppose this file is called motif_promoters.txt. The file is expected to have a gff format:
+2. Map motif instances to promoters by using either bedtools or our in house script, (matchMotifToGenePerTF2.py)[https://github.com/Roy-lab/aggregateSignalMotifNet/blob/master/matchMotifToGenePerTF2.py] to produce a file listing the set of motif instances mapped to promoters. Bedtools can be used by intersecting genome-wide instances with the promoter coordinate file. Suppose this file is called motif_promoters.txt. The input file to aggregateSignalMotifNetis expected to have a gff format:
+<motif regions> <tss list> <upstream window> <downstream window> <output>
 
 ```
 chr21	CONVERT	TSS_Gene2_TSS1	35198809	35198821	0	+	0	Motif2;Gene1
 chr21	CONVERT	TSS_Gene2_TSS1	35144166	35144177	0	+	0	Motif2;Gene2
 ```
-that contains the coordinates of motif instances in promoters. 
+that contains the coordinates of motif instances in promoters. This can be prepared with 
+
+```
+python matchMotifToGenePerTF2.py <motif regions> <tss list> <upstream window> <downstream window> <output>
+
+*Ali, can you update with example unput motif instance and promoter list input files for your case?*
+
+python matchMotifToGenePerTF2.py <motif regions> <tss list> 2500 2500 motif_promoters.txt
+```
 **_Note:_** The last column has both motif name and target gene name, separated by ";".
 
 **_Note:_** In both programs, in the input gff like file, set the strand sign to +. 
@@ -64,12 +73,41 @@ that contains the coordinates of motif instances in promoters.
 ```
 ./aggregateSignal motif_promoters.txt mm10.fa.fai output.counts output.txt
 ```
+This tool will then be simialrly applied to the planned data set for each mark/measurement for each time-point/condition to generate the full set of aggregated Q-motif feature data to describe the data set.
 
 ### Feature merging
 
+4. To merge the Q-motif feature data across time-points/conditions the data for each such condition should be merged columns wise. In practice this merging can of course be done flexibly in different context. Locally our mergeData tool was used here in practice https://github.com/Roy-lab/drmn_utils/tree/master/mergedata.
+
+Here the input is a list of tab-delimited .txt files of data to merge, and the output will be a single .txt file containing the conctentated set of data values from all of the input data, as indicated in the readme for this tool. 
+
+Here each row of the merged output data matrix will represent one motif-gene pairing, and the columns will provide the data values from the input files following the header column information, as in the motif_promoters.txt example). 
+
+Cases of motif sites with no coverage in one of the condition data sets might appear with the "<nodata>" symbol in one or more columns. In practice those motif-promoter pairings with incomplete data (instances of <no data >) can be removed if they represent a small minority of the overall set of features. Another apporach is to substitute such entries with zero values. 
+
+Note: at this stage we also have merged the results for multiple different motifs together row-wise, since the Q motif values are unqiue for each propsective gene promoter and and PWM, separately. 
+
 ### Feature normalization
 
-Furthermore, for each feature, we log transform and quantile normalize the values across cell lines/time points. This can be done in matlab using..
+For the merged Q-motif (or chromatin mark) data set we then log transform and quantile normalize the obtained values across cell lines/time points. Again, such transformations can flexibly be applied in varying ways. Locally this was done in matlab using a script, https://github.com/Roy-lab/drmn_utils/blob/master/quantile_normalize.m, with the following usage:
+
+```
+ quantile_normalize(<input file>,<normalized file>,logOption)
+ 
+ or 
+ 
+ quantile_normalize(merged_example.txt,normalized_example.txt,'doLog')
+ 
+```
+
+The output normalized data matrix will then represent the log transformed and quantile normalized Q-motif feature data values for use in DRMN.
+
+For berevity, if dealing with a data matrix <data> already read in in matlab, the output matrix result will be obatined with the following two lines, which can then be written out in a standard way:
+
+``` 
+log(<data>+1)
+quantilenorm(<data>)
+```
 
 ### Formatting
 
