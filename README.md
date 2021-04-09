@@ -6,9 +6,23 @@ Dynamic Regulatory Module Networks (DRMN) is a computational framework to infer 
 
 ![alt text](example_input/drmn_overview.png "Overview of DRMN. Given a cell lineage (or a time course), and context-specific and context-independent features for each cell line, DRMN infers modules of coexpressed genes in each cell line and infers a regulatory program for each module. DRMN allows for change in module assignment of genes across cell lines based on similarity of cell lines and changes in expression of genes.")
 
+The main steps of the pipleline are:
 
-For data pre-processing steps needed for feature generation, see [feature generation](dataprocessing.md). For explanation of different input files, see [other input files for DRMN](otherinputs.md). The enclosed example script [run_example.sh](run_example.sh) shows how to run DRMN on an example [input dataset](example_input).
+### 1. Prepare feature files
+The DRMN program needs per cell line/time point feature files. These could be context specific (like histone modification signals) or context independent (like motif instances). For a brief description of how to prepare these features see [feature generation](dataprocessing.md).
 
+### 2. Prepare DRMN input files
+The DRMN program needs multiple input files (including the feature files generated in the first step, lineage tree, and list of genes).
+For explanation of these different input files, see [other input files for DRMN](otherinputs.md).
+
+### 3. Apply DRMN
+The usage of the DRMN program is included at the end of this page. See the enclosed example script [run_example.sh](run_example.sh) for how to run DRMN on an example [input dataset](example_input).
+
+### 4. Find transitioning gene sets
+First post processing step in the DRMN pipeline is identifying genes that change their module assignment across cell lines/time points. See find_transitioning_genesets_DRMN prgoram in [DRMN utils](https://github.com/Roy-lab/drmn_utils/).
+
+### 5. Predict regulators for transitioning gene sets.
+Second post processing step in the DRMN pipeline is identifying regulatory features associated with transitioning gene sets. See mtg_lasso in [DRMN utils](https://github.com/Roy-lab/drmn_utils/).
 
 # Usage and other parameters
 
