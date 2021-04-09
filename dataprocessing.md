@@ -15,7 +15,7 @@ Furthermore, if accessibility signals (e.g. DNase-seq/ATAC-seq) are available, w
 We used our in-house softwares to aggregate signal in promoter regions or motif instances. 
 
 ### Generating Histone and Accessibility features
-We use the program [aggregateSignal](https://github.com/Roy-lab/aggregateSignalRegion_nonLog) to generate the Histone and Accessibility features. This tool will aggregate the signal (ATAC-seq, DNase-seq, or histone modification) in promoter region of genes. Suppose we have bam files for a particular histone mark or accessibility. To generate this feature the steps are: 
+We use the program [aggregateSignal](https://github.com/Roy-lab/drmn_utils/tree/master/feature_generation_tools/aggregateSignalRegion_nonLog) to generate the Histone and Accessibility features. This tool will aggregate the signal (ATAC-seq, DNase-seq, or histone modification) in promoter region of genes. Suppose we have bam files for a particular histone mark or accessibility. To generate this feature the steps are: 
 
 1. Use bedtools to convert bam files to count files:
 ```
@@ -40,15 +40,18 @@ Capn8	13.9519
 Casc4	4.59291
 ```
 
+See feature_generation_tools in [DRMN utils](https://github.com/Roy-lab/drmn_utils/) for example of how this is used.
+
+
 ### Generating Q-Motif feature (accessibility signal of motifs)
 
-We use the program [aggregateSignalMotifNet](https://github.com/Roy-lab/drmn_utils/tree/master/aggregateSignalMotifNet) to aggregate signal (e.g., from ATAC-seq or DNA-seq) in motif instances mapped to promoter region of genes. To generate these features the steps are:
+We use the program [aggregateSignalMotifNet](https://github.com/Roy-lab/drmn_utils/tree/master/feature_generation_tools/aggregateSignalMotifNet) to aggregate signal (e.g., from ATAC-seq or DNA-seq) in motif instances mapped to promoter region of genes. To generate these features the steps are:
 
 1. Use bedtools to convert bam files to count files:
 ```
 bedtools genomecov -ibam input.bam -bg -pc > output.counts
 ```
-2. Map motif instances to promoters by using either bedtools or our in house script, (matchMotifToGenePerTF2.py)[https://github.com/Roy-lab/aggregateSignalMotifNet/blob/master/matchMotifToGenePerTF2.py] to produce a file listing the set of motif instances mapped to promoters. Bedtools can also be used by intersecting genome-wide instances with the promoter coordinate file. Suppose this file is called motif_promoters.txt. The input file to aggregateSignalMotifNetis expected to have a gff format:
+2. Map motif instances to promoters by using either bedtools or our in house script, (matchMotifToGenePerTF2.py)[https://github.com/Roy-lab/drmn_utils/blob/master/feature_generation_tools/aggregateSignalMotifNet/matchMotifToGenePerTF2.py] to produce a file listing the set of motif instances mapped to promoters. Bedtools can also be used by intersecting genome-wide instances with the promoter coordinate file. Suppose this file is called motif_promoters.txt. The input file to aggregateSignalMotifNetis expected to have a gff format:
 <motif regions> <tss list> <upstream window> <downstream window> <output>
 
 ```
@@ -74,6 +77,8 @@ python matchMotifToGenePerTF2.py <motif regions> <tss list> 2500 2500 motif_prom
 ./aggregateSignal motif_promoters.txt mm10.fa.fai output.counts output.txt
 ```
 This tool will then be simialrly applied to the planned data set for each mark/measurement for each time-point/condition to generate the full set of aggregated Q-motif feature data to describe the data set.
+
+See feature_generation_tools in [DRMN utils](https://github.com/Roy-lab/drmn_utils/) for example of how this is used.
 
 ### Feature merging
 
